@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
@@ -106,6 +107,12 @@ app.add_middleware(
 def health_liveness() -> HealthResponse:
     """Корень: для healthcheck Paaс (до SPA mount, чтобы путь не перехватывался статикой)."""
     return _health_response()
+
+
+@app.head("/health", include_in_schema=False)
+def health_liveness_head() -> Response:
+    """Timeweb и др. часто шлют HEAD; без явного маршрута FastAPI отдаёт 404."""
+    return Response(status_code=200)
 
 
 router = APIRouter()
@@ -257,6 +264,22 @@ if API_PREFIX:
     app.include_router(router, prefix=API_PREFIX)
 else:
     app.include_router(router)
+
+
+@app.get("/", include_in_schema=False, response_model=None)
+def root_spa_or_probe() -> FileResponse | PlainTextResponse:
+    """Главная SPA. Путь проверки состояния «/» в Timeweb — стабильный 200 (GET)."""
+    if STATIC_DIR.is_dir():
+        index = STATIC_DIR / "index.html"
+        if index.is_file():
+            return FileResponse(index)
+    return PlainTextResponse("ok", media_type="text/plain")
+
+
+@app.head("/", include_in_schema=False)
+def root_probe_head() -> Response:
+    """HEAD «/» для healthcheck (Timeweb)."""
+    return Response(status_code=200)
 
 
 if STATIC_DIR.is_dir():

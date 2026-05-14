@@ -36,6 +36,6 @@ RUN chmod +x /app/deploy/start.sh
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=20 \
-  CMD python -c "import os,urllib.request; from pathlib import Path; raw=Path('/tmp/.geoatm_listen_port').read_text().strip() if Path('/tmp/.geoatm_listen_port').is_file() else (os.environ.get('PORT') or '8080'); p=int(raw) if raw.isdigit() else 8080; urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=4).read()"
+  CMD python -c "import os,urllib.request; from pathlib import Path; raw=Path('/tmp/.geoatm_listen_port').read_text().strip() if Path('/tmp/.geoatm_listen_port').is_file() else (os.environ.get('PORT') or '8080'); p=int(raw) if raw.isdigit() else 8080; urllib.request.urlopen(f'http://127.0.0.1:{p}/', timeout=4).read(65536)"
 
 CMD ["/app/deploy/start.sh"]
