@@ -16,6 +16,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
+    PIP_ROOT_USER_ACTION=ignore \
     PORT=8080 \
     GEOATM_DATA_DIR=/data \
     GEOATM_AUTO_INGEST=1 \
@@ -31,11 +32,13 @@ COPY backend/config /app/config
 COPY --from=frontend /src/dist /app/static
 
 COPY deploy/start.sh /app/deploy/start.sh
-RUN chmod +x /app/deploy/start.sh
+COPY deploy/healthcheck.py /app/deploy/healthcheck.py
+RUN chmod +x /app/deploy/start.sh /app/deploy/healthcheck.py
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=20 \
-  CMD python -c "import os,urllib.request; from pathlib import Path; raw=Path('/tmp/.geoatm_listen_port').read_text().strip() if Path('/tmp/.geoatm_listen_port').is_file() else (os.environ.get('PORT') or '8080'); p=int(raw) if raw.isdigit() else 8080; urllib.request.urlopen(f'http://127.0.0.1:{p}/', timeout=4).read(65536)"
+# Длинный start-period: холодный импорт + фоновый ingest на слабом CPU (Timeweb ~3 мин лимит деплоя).
+HEALTHCHECK --interval=10s --timeout=8s --start-period=120s --retries=18 \
+  CMD python3 /app/deploy/healthcheck.py
 
 CMD ["/app/deploy/start.sh"]

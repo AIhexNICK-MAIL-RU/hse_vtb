@@ -37,4 +37,4 @@ v1: кэш **в памяти процесса** (глобальный `state`). 
 
 Платформа обычно проверяет **`GET /`** или **`HEAD /`** (в Timeweb по умолчанию путь «**/**»). Дополнительно доступны **`GET /health`** и **`HEAD /health`**. Нельзя поднимать **только nginx** до старта API: пока тяжёлый ingest блокирует процесс, на порту никого нет. В текущем образе ingest уходит в **фон** (`asyncio.to_thread`), а **`GET /health`** отвечает сразу (статус `degraded`, пока данные не загрузились).
 
-**Импорт sklearn** откладывается до первого `ingest` / `explain` — uvicorn быстрее поднимает сокет (важно при жёстком таймауте healthcheck). В образе задан **`HEALTHCHECK`** на `http://127.0.0.1:<порт>/health`; фактический порт пишется в `/tmp/.geoatm_listen_port` скриптом `deploy/start.sh` (нормализация `PORT`).
+**Импорт sklearn** откладывается до первого `ingest` / `explain` — uvicorn быстрее поднимает сокет (важно при жёстком таймауте healthcheck). В образе задан **`HEALTHCHECK`** через скрипт `deploy/healthcheck.py` (последовательно **`/`** и **`/health`**, порт из `/tmp/.geoatm_listen_port` или `PORT`). Старт приложения: `deploy/start.sh` → `python3 -m uvicorn …`.
