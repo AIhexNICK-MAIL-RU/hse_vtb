@@ -1,6 +1,23 @@
 services:
+  # Один контейнер для продакшена (Timeweb и др.): без 502 из-за отсутствия хоста api
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      GEOATM_DATA_DIR: /data
+      GEOATM_AUTO_INGEST: "1"
+      GEOATM_CORS_ORIGINS: "*"
+    volumes:
+      - ..:/data:ro
+
   api:
     build: ./backend
+    profiles:
+      - split
     ports:
       - "8000:8000"
     environment:
@@ -12,7 +29,9 @@ services:
 
   web:
     build: ./frontend
+    profiles:
+      - split
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - api

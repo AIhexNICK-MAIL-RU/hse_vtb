@@ -32,10 +32,22 @@ npm run dev
 docker compose up --build
 ```
 
-- API: `http://localhost:8000/docs`
-- UI (nginx + прокси `/api`): `http://localhost:8080`
+Поднимается сервис **`app`** (единый контейнер: nginx + FastAPI на `127.0.0.1:8000`). Это нужно для **Timeweb Cloud и аналогичных PaaS**, где нельзя полагаться на DNS-имя `api` между контейнерами — иначе nginx отдаёт **502**.
 
-Том `..` монтируется в контейнер как `/data` — это **родительский каталог `web_service`**, т.е. корень кейса с CSV/GeoJSON.
+- UI + API через один порт: `http://localhost:8080` (прокси `/api/` → uvicorn).
+- Данные: том `..` → `/data` (корень кейса с `dataset_final.csv`).
+
+Раздельный режим (только локально): `docker compose --profile split up --build` — сервисы `api` (8000) и `web` (8081).
+
+### Timeweb / один контейнер
+
+1. **Корень сборки:** каталог `web_service` репозитория.  
+2. **Dockerfile:** `Dockerfile` (в корне `web_service`, не `frontend/Dockerfile`).  
+3. **Порт:** по умолчанию контейнер слушает **`8080`** (переменная `PORT`). В панели укажите тот же внутренний порт или задайте `PORT=80`, если провайдер требует 80.  
+4. **Данные:** смонтируйте том в **`/data`** (каталог с `dataset_final.csv` и CSV новостроек).
+
+- API (Swagger): `http://<хост>:<порт>/api/docs`  
+- UI: `http://<хост>:<порт>/`
 
 ## Переменные окружения
 
