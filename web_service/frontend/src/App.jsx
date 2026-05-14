@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import { CircleMarker, LayerGroup, MapContainer, Popup, TileLayer, GeoJSON, useMap } from "react-leaflet";
 
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+/** Прод: тот же хост, префикс /api. Подпуть деплоя: учитываем import.meta.env.BASE_URL (Vite). */
+const viteApi = import.meta.env.VITE_API_URL;
+const viteBase = import.meta.env.BASE_URL || "/";
+const basePrefix = viteBase === "/" ? "" : viteBase.replace(/\/$/, "");
+const API_BASE =
+  viteApi != null && String(viteApi).trim() !== ""
+    ? String(viteApi).trim().replace(/\/$/, "")
+    : `${basePrefix}/api`;
+
+const HEALTH_POLL_MS = 2000;
+const HEALTH_WAIT_MS = 180_000;
 
 function FitBoth({ zonesGeo, devGeo }) {
   const map = useMap();
@@ -48,6 +58,7 @@ export default function App() {
   const [showNewBuildings, setShowNewBuildings] = useState(true);
   const [developments, setDevelopments] = useState([]);
   const [devSource, setDevSource] = useState("");
+  const [backendStatus, setBackendStatus] = useState("Проверка API…");
 
   const geojson = useMemo(() => {
     const features = zones.map((z) => ({
@@ -75,6 +86,32 @@ export default function App() {
     return { type: "FeatureCollection", features };
   }, [developments]);
 
+  async function waitForDataReady() {
+    const t0 = Date.now();
+    setBackendStatus("Ожидание загрузки данных на сервере…");
+    while (Date.now() - t0 < HEALTH_WAIT_MS) {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        if (!res.ok) throw new Error(String(res.status));
+        const h = await res.json();
+        if (h.data_loaded) {
+          setBackendStatus("");
+          return true;
+        }
+        const hint = h.last_error ? ` Ошибка: ${h.last_error}` : "";
+        setBackendStatus(`Сервер ещё грузит датасет (ingest)…${hint}`);
+      } catch (e) {
+        console.error(e);
+        setBackendStatus("Не удаётся связаться с API (/api/health). Проверьте URL и том /data.");
+      }
+      await new Promise((r) => setTimeout(r, HEALTH_POLL_MS));
+    }
+    setBackendStatus(
+      "Данные так и не загрузились за отведённое время. Проверьте том /data (dataset_final.csv), логи контейнера и GEOATM_AUTO_INGEST=1.",
+    );
+    return false;
+  }
+
   async function loadDevelopments() {
     if (!showNewBuildings) return;
     try {
@@ -98,6 +135,10 @@ export default function App() {
       params.set("limit", String(limit));
       if (minScore !== "") params.set("min_score", minScore);
       const res = await fetch(`${API_BASE}/zones?${params.toString()}`);
+      if (res.status === 503) {
+        const t = await res.text();
+        throw new Error(`503: данные ещё не готовы. ${t}`);
+      }
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setZones(data.zones || []);
@@ -105,6 +146,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
       setZones([]);
+      setBackendStatus(`Не удалось загрузить зоны: ${e?.message || e}`);
     } finally {
       setLoading(false);
     }
@@ -115,17 +157,27 @@ export default function App() {
       const params = new URLSearchParams();
       params.set("scenario", scenario);
       const res = await fetch(`${API_BASE}/summary?${params.toString()}`);
+      if (res.status === 503) {
+        const t = await res.text();
+        throw new Error(`Данные не загружены (503). Дождитесь ingest или проверьте /data. ${t}`);
+      }
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setSummary(data.text || "");
     } catch (e) {
       console.error(e);
-      setSummary("Не удалось загрузить summary (проверьте API).");
+      setSummary(e?.message || "Не удалось загрузить summary (проверьте API).");
     }
   }
 
   useEffect(() => {
-    loadZones();
+    (async () => {
+      const ok = await waitForDataReady();
+      if (ok) {
+        await loadZones();
+        await loadDevelopments();
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -138,6 +190,8 @@ export default function App() {
     <div className="layout">
       <aside className="panel">
         <h1>VTB GeoATM — приоритет зон</h1>
+        {backendStatus ? <div className="meta warn">{backendStatus}</div> : null}
+        <div className="meta">API: {API_BASE}</div>
         <div className="meta">model_version: {modelVersion || "—"}</div>
 
         <label className="row-check">

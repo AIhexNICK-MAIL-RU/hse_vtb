@@ -51,7 +51,7 @@ docker compose up --build
 7. **Данные:** смонтируйте том в **`/data`** (каталог с `dataset_final.csv` и CSV новостроек).
 
 - API (Swagger): `http://<хост>:<порт>/api/docs`  
-- UI: `http://<хост>:<порт>/`
+- UI: `http://<хост>:<порт>/` — после деплоя страница **ждёт `GET /api/health`** (`data_loaded`), затем подгружает зоны; при ошибке ingest в панели виден текст `last_error` из health.
 
 ## Переменные окружения
 

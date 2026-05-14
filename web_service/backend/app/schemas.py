@@ -14,6 +14,10 @@ class HealthResponse(BaseModel):
     model_version: str
     developments_count: int = 0
     developments_source: str | None = None
+    last_error: str | None = Field(
+        default=None,
+        description="Текст последней ошибки ingest (только пока data_loaded=false)",
+    )
 
 
 class ZoneOut(BaseModel):

@@ -81,6 +81,15 @@ body {
   margin-top: 8px;
 }
 
+.meta.warn {
+  color: #b45309;
+  background: #fffbeb;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  line-height: 1.35;
+}
+
 .summary {
   margin-top: 14px;
   padding: 10px;

@@ -57,13 +57,15 @@ def _row_to_zone(r: Any) -> ZoneOut:
 
 
 def _health_response() -> HealthResponse:
+    loaded = state.loaded()
     return HealthResponse(
-        status="ok" if state.loaded() else "degraded",
-        data_loaded=state.loaded(),
+        status="ok" if loaded else "degraded",
+        data_loaded=loaded,
         rows=int(len(state.df)) if state.df is not None else 0,
         model_version=state.model_version,
         developments_count=len(state.developments),
         developments_source=(state.developments_meta or {}).get("source"),
+        last_error=None if loaded else state.last_error,
     )
 
 
