@@ -108,3 +108,117 @@ body {
   height: 100%;
   width: 100%;
 }
+
+/* Попапы: макет как в web_service/screens/ (шапка + список строк с иконкой) */
+.leaflet-popup-content {
+  margin: 10px 12px 10px 10px;
+}
+
+.leaflet-popup-content .zp-shell {
+  font-size: 12px;
+  line-height: 1.35;
+  min-width: 220px;
+  max-width: 300px;
+  color: #0f172a;
+}
+
+.leaflet-popup-content .zp-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.leaflet-popup-content .zp-header-ico {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.leaflet-popup-content .zp-header-text {
+  min-width: 0;
+}
+
+.leaflet-popup-content .zp-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.leaflet-popup-content .zp-header-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+.leaflet-popup-content .zp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+
+.leaflet-popup-content .zp-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.leaflet-popup-content .zp-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.leaflet-popup-content .zp-item-ico {
+  font-size: 16px;
+  line-height: 1.25;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.leaflet-popup-content .zp-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.leaflet-popup-content .zp-item-line {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.leaflet-popup-content .zp-item-abbr {
+  font-weight: 700;
+  color: #0f172a;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+.leaflet-popup-content .zp-item-sep {
+  margin: 0 3px;
+  color: #cbd5e1;
+}
+
+.leaflet-popup-content .zp-item-suffix {
+  font-weight: 500;
+}
+
+.leaflet-popup-content .zp-item-val {
+  font-size: 12px;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+.leaflet-popup-content .zp-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}

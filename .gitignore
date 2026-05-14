@@ -22,3 +22,6 @@ Unconfirmed*
 
 # Логи
 *.log
+
+# Локальные логи деплоя / отладки
+web_service/bugs/

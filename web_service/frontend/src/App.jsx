@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import { CircleMarker, LayerGroup, MapContainer, Popup, TileLayer, GeoJSON, useMap } from "react-leaflet";
+import { buildZonePopupHtml, DEV_POPUP, formatNum } from "./glossary.js";
 
 /** Прод: тот же хост, префикс /api. Подпуть деплоя: учитываем import.meta.env.BASE_URL (Vite). */
 const viteApi = import.meta.env.VITE_API_URL;
@@ -45,6 +46,28 @@ function deliveryColor(score) {
   if (score >= 0.72) return "#ea580c";
   if (score >= 0.5) return "#ca8a04";
   return "#64748b";
+}
+
+function DevFieldRow({ meta, children, valueTitle }) {
+  return (
+    <div className="zp-item" title={meta.hint}>
+      <span className="zp-item-ico" aria-hidden="true">
+        {meta.icon}
+      </span>
+      <div className="zp-item-main">
+        <div className="zp-item-line">
+          <abbr className="zp-item-abbr" title={meta.hint}>
+            {meta.label}
+          </abbr>
+          <span className="zp-item-sep">·</span>
+          <span className="zp-item-suffix">{meta.suffix}</span>
+        </div>
+        <div className="zp-item-val" title={valueTitle}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -194,7 +217,7 @@ export default function App() {
         <div className="meta">API: {API_BASE}</div>
         <div className="meta">model_version: {modelVersion || "—"}</div>
 
-        <label className="row-check">
+        <label className="row-check" title="Слой точек новостроек; размер маркера и цвет — по delivery_score (см. попап).">
           <input
             type="checkbox"
             checked={showNewBuildings}
@@ -207,7 +230,9 @@ export default function App() {
           {devSource ? ` · файл: ${devSource.split("/").pop()}` : ""}
         </div>
 
-        <label>Сценарий H3</label>
+        <label title="Фильтр зон по меткам сценария в ячейке H3 (см. теги на карте).">
+          Сценарий (теги H3)
+        </label>
         <select value={scenario} onChange={(e) => setScenario(e.target.value)}>
           <option value="any">Все</option>
           <option value="white_spots">Белые пятна</option>
@@ -216,7 +241,9 @@ export default function App() {
           <option value="low_utilization">Низкая загрузка</option>
         </select>
 
-        <label>Мин. Demand Score (эвристика), пусто = без фильтра</label>
+        <label title="DS — эвристический Demand Score по ячейке H3 (0–1), не путать с ML-priority.">
+          Мин. DS (Demand Score), пусто = без фильтра
+        </label>
         <input value={minScore} onChange={(e) => setMinScore(e.target.value)} placeholder="например 0.65" />
 
         <label>Лимит зон на карте</label>
@@ -253,14 +280,7 @@ export default function App() {
             }}
             onEachFeature={(feat, layer) => {
               const p = feat.properties;
-              layer.bindPopup(
-                `<div style="font-size:12px;line-height:1.35">
-                  <div><b>H3</b>: ${p.h3}</div>
-                  <div><b>ML</b>: ${p.ml?.toFixed?.(3)}</div>
-                  <div><b>DS</b>: ${p.ds?.toFixed?.(3)}</div>
-                  <div><b>Теги</b>: ${p.tags || "—"}</div>
-                </div>`
-              );
+              layer.bindPopup(buildZonePopupHtml(p));
             }}
           />
           {showNewBuildings && developments.length > 0 && (
@@ -278,27 +298,32 @@ export default function App() {
                   }}
                 >
                   <Popup>
-                    <div style={{ fontSize: 12, lineHeight: 1.4, minWidth: 180 }}>
-                      <div>
-                        <b>{d.name || d.building_id}</b>
-                      </div>
-                      <div>
-                        <b>delivery_score</b>: {d.delivery_score?.toFixed?.(3)}
-                      </div>
-                      <div>
-                        <b>tier</b>: {d.delivery_tier}
-                      </div>
-                      <div>
-                        <b>Сдача</b>: {d.completion_date}
-                      </div>
-                      <div>
-                        <b>Мес. до сдачи</b>: {d.months_to_completion}
-                      </div>
-                      {d.address ? (
-                        <div>
-                          <b>Адрес</b>: {d.address}
+                    <div className="zp-shell dev-popup">
+                      <div className="zp-header">
+                        <span className="zp-header-ico" title="Новостройка, delivery_score">
+                          🏗
+                        </span>
+                        <div className="zp-header-text">
+                          <div className="zp-header-title">{d.name || "Объект"}</div>
+                          <div className="zp-header-sub">{d.building_id || "Новостройка · VTB GeoATM"}</div>
                         </div>
-                      ) : null}
+                      </div>
+                      <div className="zp-list">
+                        <DevFieldRow meta={DEV_POPUP.coords}>
+                          <span className="zp-mono">
+                            {typeof d.lat === "number" && typeof d.lon === "number"
+                              ? `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`
+                              : "—"}
+                          </span>
+                        </DevFieldRow>
+                        <DevFieldRow meta={DEV_POPUP.delivery_score}>{formatNum(d.delivery_score)}</DevFieldRow>
+                        <DevFieldRow meta={DEV_POPUP.delivery_tier}>{d.delivery_tier ?? "—"}</DevFieldRow>
+                        <DevFieldRow meta={DEV_POPUP.completion}>{d.completion_date ?? "—"}</DevFieldRow>
+                        <DevFieldRow meta={DEV_POPUP.months_to_completion}>
+                          {d.months_to_completion ?? "—"}
+                        </DevFieldRow>
+                        {d.address ? <DevFieldRow meta={DEV_POPUP.address}>{d.address}</DevFieldRow> : null}
+                      </div>
                     </div>
                   </Popup>
                 </CircleMarker>
