@@ -25,7 +25,6 @@ from app.schemas import (
 )
 from app.services.developments import developments_geojson
 from app.services.features import FEATURE_COLUMNS, h3_to_polygon_geojson
-from app.services.ml_train import local_explain_row
 from app.services.summary import build_summary
 from app.state import state
 
@@ -102,6 +101,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/health", response_model=HealthResponse)
+def health_liveness() -> HealthResponse:
+    """Корень: для healthcheck Paaс (до SPA mount, чтобы путь не перехватывался статикой)."""
+    return _health_response()
+
+
 router = APIRouter()
 
 if API_PREFIX:
@@ -174,6 +180,8 @@ def zones(
 
 @router.get("/zones/{h3}/explain", response_model=ExplainResponse)
 def explain_zone(h3: str) -> ExplainResponse:
+    from app.services.ml_train import local_explain_row
+
     if not state.loaded() or state.df is None or state.bundle is None:
         raise HTTPException(status_code=503, detail="Данные не загружены.")
     df = state.df
@@ -249,12 +257,6 @@ if API_PREFIX:
     app.include_router(router, prefix=API_PREFIX)
 else:
     app.include_router(router)
-
-
-@app.get("/health", response_model=HealthResponse)
-def health_liveness() -> HealthResponse:
-    """Для healthcheck провайдера (всегда на корне, без зависимости от GEOATM_API_PREFIX)."""
-    return _health_response()
 
 
 if STATIC_DIR.is_dir():

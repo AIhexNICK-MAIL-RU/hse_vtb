@@ -18,7 +18,6 @@ from app.services.features import (
     tag_scenarios,
 )
 from app.services.developments import load_developments
-from app.services.ml_train import train_models
 
 
 def _version_token(df: pd.DataFrame, metrics: dict[str, Any]) -> str:
@@ -45,6 +44,8 @@ class AppState:
         return self.df is not None and self.bundle is not None
 
     def ingest(self, data_dir: Any | None = None) -> None:
+        from app.services.ml_train import train_models
+
         root = Path(data_dir) if data_dir is not None else settings.data_dir
         self.cfg = settings.merged_config
         self.last_error = None

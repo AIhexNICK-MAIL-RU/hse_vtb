@@ -1,6 +1,6 @@
 # Единый образ для PaaS (Timeweb и т.п.): один процесс uvicorn на 0.0.0.0:$PORT,
 # API под /api, статика SPA из dist, /health на корне для healthcheck.
-# Раньше nginx слушал 8080 только после долгого старта API — проверка здоровья не проходила.
+# sklearn подгружается только при ingest/explain — быстрее bind порта после старта.
 
 FROM node:20-alpine AS frontend
 WORKDIR /src
@@ -30,6 +30,12 @@ COPY backend/config /app/config
 
 COPY --from=frontend /src/dist /app/static
 
+COPY deploy/start.sh /app/deploy/start.sh
+RUN chmod +x /app/deploy/start.sh
+
 EXPOSE 8080
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=20 \
+  CMD python -c "import os,urllib.request; from pathlib import Path; raw=Path('/tmp/.geoatm_listen_port').read_text().strip() if Path('/tmp/.geoatm_listen_port').is_file() else (os.environ.get('PORT') or '8080'); p=int(raw) if raw.isdigit() else 8080; urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=4).read()"
+
+CMD ["/app/deploy/start.sh"]
