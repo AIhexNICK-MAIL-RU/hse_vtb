@@ -238,6 +238,32 @@ body {
   border-top: 1px solid #e2e8f0;
 }
 
+.leaflet-popup-content .zp-focus-box {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border: 1px solid #bfdbfe;
+}
+
+.leaflet-popup-content .zp-focus-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 4px;
+}
+
+.leaflet-popup-content .zp-focus-val {
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.leaflet-popup-content .zp-focus-sub {
+  margin-top: 4px;
+  font-size: 10px;
+  color: #64748b;
+}
+
 .leaflet-popup-content .zp-placement-head {
   margin-bottom: 6px;
 }

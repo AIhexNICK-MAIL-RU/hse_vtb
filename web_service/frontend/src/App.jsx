@@ -128,6 +128,8 @@ export default function App() {
     markets: true,
     hardware_stores: true,
   });
+  /** Категория POI для выделенного блока «расстояние от центра H3» в попапе зоны */
+  const [focusPoiCategory, setFocusPoiCategory] = useState("");
 
   const geojson = useMemo(() => {
     const features = zones.map((z) => ({
@@ -319,6 +321,18 @@ export default function App() {
           </label>
         ))}
 
+        <label title="В попапе ячейки H3 сверху показывается расстояние от центра зоны до ближайшей точки выбранной категории (те же данные, что в блоке размещения).">
+          Расстояние до категории (в попапе зоны)
+        </label>
+        <select value={focusPoiCategory} onChange={(e) => setFocusPoiCategory(e.target.value)}>
+          <option value="">Не выделять</option>
+          {POI_LAYER_ORDER.map((k) => (
+            <option key={k} value={k}>
+              {POI_LAYER_LABELS[k]}
+            </option>
+          ))}
+        </select>
+
         <label title="Фильтр зон по меткам сценария в ячейке H3 (см. теги на карте).">
           Сценарий (теги H3)
         </label>
@@ -372,7 +386,7 @@ export default function App() {
               ) : null,
             )}
           <GeoJSON
-            key={`${modelVersion}-${scenario}-${zones.length}-p`}
+            key={`${modelVersion}-${scenario}-${zones.length}-p-${focusPoiCategory}`}
             data={geojson}
             style={(feat) => {
               const ml = feat?.properties?.ml ?? 0;
@@ -385,7 +399,7 @@ export default function App() {
             }}
             onEachFeature={(feat, layer) => {
               const p = feat.properties;
-              layer.bindPopup(buildZonePopupHtml(p));
+              layer.bindPopup(buildZonePopupHtml(p, { focusCategory: focusPoiCategory }));
             }}
           />
           {poiGeo &&

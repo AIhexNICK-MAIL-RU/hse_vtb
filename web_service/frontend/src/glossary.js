@@ -120,8 +120,47 @@ function itemRow(field, valueHtml, valuePlainForTitle) {
   </div>`;
 }
 
-export function buildZonePopupHtml(props) {
+export const FOCUS_POI_CATEGORY = {
+  metro: { field: "nearest_metro", title: "Ближайшее метро", icon: "🚇" },
+  malls: { field: "nearest_mall", title: "Ближайший ТЦ / крупная торговля", icon: "🏢" },
+  markets: { field: "nearest_market", title: "Ближайший рынок", icon: "🛒" },
+  hardware_stores: { field: "nearest_hardware", title: "Ближайший строймагазин", icon: "🔧" },
+  universities: { field: "nearest_university", title: "Ближайший ВУЗ", icon: "🎓" },
+  offices: { field: "nearest_office", title: "Ближайший офис (справочник)", icon: "🏛" },
+  vtb_atms: { field: "nearest_vtb_atm", title: "Ближайший банкомат ВТБ", icon: "🏧" },
+  competitor_atms: { field: "nearest_competitor_atm", title: "Ближайший банкомат конкурента", icon: "🏪" },
+};
+
+export function buildFocusCategoryHtml(placement, categoryId) {
+  if (!placement || !categoryId || typeof categoryId !== "string") return "";
+  const meta = FOCUS_POI_CATEGORY[categoryId];
+  if (!meta) return "";
+  const n = placement[meta.field];
+  const title = escapeHtml(meta.title);
+  const ic = escapeHtml(meta.icon);
+  if (!n || typeof n !== "object") {
+    return `<div class="zp-focus-box zp-muted">
+      <div class="zp-focus-title">${ic} ${title}</div>
+      <div class="zp-focus-val">Нет точки в справочнике или нет координат</div>
+    </div>`;
+  }
+  const name = escapeHtml(n.name || "—");
+  const dm = escapeHtml(String(n.distance_m ?? "—"));
+  const lat = Number(n.lat);
+  const lon = Number(n.lon);
+  const coord =
+    Number.isFinite(lat) && Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "—";
+  const hint = escapeHtml(`${meta.title}: ${n.name || ""} | WGS84 ${coord}`);
+  return `<div class="zp-focus-box" title="${hint}">
+    <div class="zp-focus-title">${ic} Выбранная категория: ${title}</div>
+    <div class="zp-focus-val"><strong>${name}</strong> · <span class="zp-mono">${dm} м</span> от центра ячейки</div>
+    <div class="zp-focus-sub zp-mono">${escapeHtml(coord)}</div>
+  </div>`;
+}
+
+export function buildZonePopupHtml(props, options = {}) {
   const p = props || {};
+  const focusCategory = options.focusCategory || "";
   const Z = ZONE_POPUP;
   const h3v = escapeHtml(p.h3);
   const mlv = escapeHtml(formatNum(p.ml));
@@ -133,6 +172,8 @@ export function buildZonePopupHtml(props) {
   const headTitle = escapeHtml(Z.headerTitle);
   const headSub = escapeHtml(Z.headerSub);
 
+  const focusBlock =
+    focusCategory && p.placement ? buildFocusCategoryHtml(p.placement, focusCategory) : "";
   const placementBlock = p.placement ? buildPlacementHtml(p.placement) : "";
 
   return `<div class="zp-shell">
@@ -143,6 +184,7 @@ export function buildZonePopupHtml(props) {
         <div class="zp-header-sub">${headSub}</div>
       </div>
     </div>
+    ${focusBlock}
     <div class="zp-list">
       ${itemRow(Z.h3, `<span class="zp-mono">${h3v}</span>`)}
       ${itemRow(Z.ml, mlv)}
