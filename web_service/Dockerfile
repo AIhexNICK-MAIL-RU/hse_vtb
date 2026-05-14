@@ -38,7 +38,7 @@ RUN chmod +x /app/deploy/start.sh /app/deploy/healthcheck.py
 EXPOSE 8080
 
 # Длинный start-period: холодный импорт + фоновый ingest на слабом CPU (Timeweb ~3 мин лимит деплоя).
-HEALTHCHECK --interval=10s --timeout=8s --start-period=120s --retries=18 \
+HEALTHCHECK --interval=10s --timeout=12s --start-period=120s --retries=18 \
   CMD python3 /app/deploy/healthcheck.py
 
 CMD ["/app/deploy/start.sh"]
