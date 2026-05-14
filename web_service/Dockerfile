@@ -18,6 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
     PIP_ROOT_USER_ACTION=ignore \
     PORT=8080 \
+    GEOATM_BIND_INTERNAL_8080=1 \
     GEOATM_DATA_DIR=/data \
     GEOATM_AUTO_INGEST=1 \
     GEOATM_API_PREFIX=/api \
@@ -37,8 +38,8 @@ RUN chmod +x /app/deploy/start.sh /app/deploy/healthcheck.py
 
 EXPOSE 8080
 
-# Длинный start-period: холодный импорт + фоновый ingest на слабом CPU (Timeweb ~3 мин лимит деплоя).
-HEALTHCHECK --interval=10s --timeout=12s --start-period=120s --retries=18 \
+# start-period: cold import + фоновый ingest на слабом CPU; Timeweb часто ~3 мин на деплой.
+HEALTHCHECK --interval=15s --timeout=12s --start-period=180s --retries=16 \
   CMD python3 /app/deploy/healthcheck.py
 
 CMD ["/app/deploy/start.sh"]
