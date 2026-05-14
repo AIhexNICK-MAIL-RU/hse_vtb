@@ -12,6 +12,8 @@ class HealthResponse(BaseModel):
     data_loaded: bool
     rows: int
     model_version: str
+    developments_count: int = 0
+    developments_source: str | None = None
 
 
 class ZoneOut(BaseModel):
@@ -75,3 +77,22 @@ class RetrainResponse(BaseModel):
     message: str
     model_version: str
     metrics: dict[str, Any]
+
+
+class NewBuildingOut(BaseModel):
+    building_id: str
+    name: str
+    address: str
+    lat: float
+    lon: float
+    completion_date: str
+    delivery_score: float
+    delivery_tier: str
+    months_to_completion: float
+
+
+class DevelopmentsResponse(BaseModel):
+    count: int
+    items: list[NewBuildingOut]
+    geojson: dict[str, Any]
+    source: str | None = None

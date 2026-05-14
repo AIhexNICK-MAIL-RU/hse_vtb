@@ -17,6 +17,7 @@ from app.services.features import (
     load_priority_zones,
     tag_scenarios,
 )
+from app.services.developments import load_developments
 from app.services.ml_train import train_models
 
 
@@ -36,6 +37,8 @@ class AppState:
     model_version: str = "uninitialized"
     poi: dict[str, pd.DataFrame] | None = None
     priority_zones: pd.DataFrame | None = None
+    developments: list[dict[str, Any]] = field(default_factory=list)
+    developments_meta: dict[str, Any] = field(default_factory=dict)
     last_error: str | None = None
 
     def loaded(self) -> bool:
@@ -45,6 +48,8 @@ class AppState:
         root = Path(data_dir) if data_dir is not None else settings.data_dir
         self.cfg = settings.merged_config
         self.last_error = None
+        self.developments = []
+        self.developments_meta = {}
         try:
             df = load_core_dataset(root)
             df = compute_heuristic_scores(df, self.cfg)
@@ -60,6 +65,11 @@ class AppState:
             self.bundle = bundle
             self.poi = load_poi_layers(root)
             self.priority_zones = load_priority_zones(root)
+            try:
+                self.developments, self.developments_meta = load_developments(root, self.cfg)
+            except Exception as e:  # noqa: BLE001
+                self.developments = []
+                self.developments_meta = {"source": None, "rows": 0, "errors": [str(e)]}
         except Exception as e:  # noqa: BLE001 — явный лог для ingest
             self.last_error = str(e)
             raise

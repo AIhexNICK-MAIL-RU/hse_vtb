@@ -17,6 +17,10 @@ curl -s "http://localhost:8000/zones/89118180927ffff/explain" | jq ".narrative, 
 ```
 
 ```bash
+curl -s http://localhost:8000/developments | jq ".count, .items[0]"
+```
+
+```bash
 curl -s "http://localhost:8000/summary?scenario=competitor" | jq -r ".text"
 ```
 

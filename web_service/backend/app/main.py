@@ -10,15 +10,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.schemas import (
+    DevelopmentsResponse,
     ExplainFeature,
     ExplainResponse,
     HealthResponse,
     IngestResponse,
+    NewBuildingOut,
     RetrainResponse,
     SummaryResponse,
     ZoneOut,
     ZonesResponse,
 )
+from app.services.developments import developments_geojson
 from app.services.features import FEATURE_COLUMNS, h3_to_polygon_geojson
 from app.services.ml_train import local_explain_row
 from app.services.summary import build_summary
@@ -75,6 +78,8 @@ def health() -> HealthResponse:
         data_loaded=state.loaded(),
         rows=int(len(state.df)) if state.df is not None else 0,
         model_version=state.model_version,
+        developments_count=len(state.developments),
+        developments_source=(state.developments_meta or {}).get("source"),
     )
 
 
@@ -92,6 +97,15 @@ def ingest(data_dir: str | None = Query(default=None)) -> IngestResponse:
         )
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/developments", response_model=DevelopmentsResponse)
+def get_developments() -> DevelopmentsResponse:
+    """Новостройки: отдельный delivery_score по сроку сдачи (файл `new_buildings.csv` или GEOATM_NEW_BUILDINGS_CSV)."""
+    items = [NewBuildingOut.model_validate(x) for x in state.developments]
+    gj = developments_geojson(state.developments)
+    src = (state.developments_meta or {}).get("source")
+    return DevelopmentsResponse(count=len(items), items=items, geojson=gj, source=str(src) if src else None)
 
 
 @app.get("/zones", response_model=ZonesResponse)

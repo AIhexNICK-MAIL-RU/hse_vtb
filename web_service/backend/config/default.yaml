@@ -22,3 +22,16 @@ ml:
 
 security:
   retrain_token: "dev-change-me"
+
+# Новостройки (отдельный слой и delivery_score; файл опционален)
+developments:
+  csv_filename: new_buildings.csv
+  # reference_date: "2026-05-14"  # раскомментируйте для демо с фиксированной «сегодня»
+  buckets:
+    months_urgent: 3
+    score_at_12m: 0.82
+    score_at_24m: 0.58
+    score_at_36m: 0.38
+    long_term_floor: 0.14
+    long_term_decay_per_month: 0.012
+    handed_over_score: 0.32

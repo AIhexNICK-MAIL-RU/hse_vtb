@@ -60,6 +60,21 @@ body {
   cursor: not-allowed;
 }
 
+.row-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.row-check input {
+  width: auto;
+  margin: 0;
+}
+
 .meta {
   font-size: 0.75rem;
   color: #64748b;

@@ -45,9 +45,10 @@ docker compose up --build
 | `GEOATM_AUTO_INGEST` | `1` — загрузить данные при старте API |
 | `GEOATM_CONFIG_PATH` | Путь к YAML, переопределяющему `backend/config/default.yaml` |
 | `GEOATM_CORS_ORIGINS` | Список origin через запятую (по умолчанию `*`) |
-| `GEOATM_RETRAIN_TOKEN` | Токен для `POST /retrain` (иначе берётся из YAML `security.retrain_token`) |
+| `GEOATM_NEW_BUILDINGS_CSV` | Абсолютный путь к CSV новостроек (иначе `GEOATM_DATA_DIR/new_buildings.csv`) |
+| `GEOATM_RETRAIN_TOKEN` | Токен для `POST /retrain` (если не задан — из YAML `security.retrain_token`) |
 
-## PDF кейса
+Пример формата новостроек: скопируйте `new_buildings.example.csv` из корня кейса в `new_buildings.csv` в том же каталоге, что и `dataset_final.csv`.
 
 Положите `Кейс_бизнес-информатика.pdf` рядом с данными (в `GEOATM_DATA_DIR`) — сервис его не читает, но так проще сдавать работу одним архивом.
 
