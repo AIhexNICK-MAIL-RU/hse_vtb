@@ -23,6 +23,10 @@ ml:
 security:
   retrain_token: "dev-change-me"
 
+# Карта: зона размещения АТМ (окружность) и расчёт ближайших POI
+ui:
+  placement_radius_m: 400
+
 # Новостройки (отдельный слой и delivery_score; файл опционален)
 developments:
   csv_filename: new_buildings.csv

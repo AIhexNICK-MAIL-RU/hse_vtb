@@ -60,6 +60,8 @@ def load_poi_layers_sqlite(path: Path) -> dict[str, pd.DataFrame]:
         ("metro", "metro"),
         ("malls", "malls"),
         ("universities", "universities"),
+        ("markets", "markets"),
+        ("hardware_stores", "hardware_stores"),
     ]
     with _open_readonly(path) as con:
         for key, table in mapping:

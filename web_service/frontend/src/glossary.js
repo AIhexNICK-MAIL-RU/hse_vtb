@@ -133,6 +133,8 @@ export function buildZonePopupHtml(props) {
   const headTitle = escapeHtml(Z.headerTitle);
   const headSub = escapeHtml(Z.headerSub);
 
+  const placementBlock = p.placement ? buildPlacementHtml(p.placement) : "";
+
   return `<div class="zp-shell">
     <div class="zp-header">
       <span class="zp-header-ico" title="Зона расчёта приоритета по H3">${headIcon}</span>
@@ -147,5 +149,54 @@ export function buildZonePopupHtml(props) {
       ${itemRow(Z.ds, dsv)}
       ${itemRow(Z.tags, tagsPretty, tagsRaw || undefined)}
     </div>
+    ${placementBlock}
   </div>`;
+}
+
+/** Строка расстояния до POI + координаты в title при наведении */
+function distPoiRow(icon, lineRu, n) {
+  const ic = escapeHtml(icon);
+  if (!n || typeof n !== "object") {
+    return `<div class="zp-item zp-muted"><span class="zp-item-ico">${ic}</span><div class="zp-item-main"><div class="zp-item-line">${escapeHtml(lineRu)}</div><div class="zp-item-val">нет данных в справочнике</div></div></div>`;
+  }
+  const name = escapeHtml(n.name || "—");
+  const dm = escapeHtml(String(n.distance_m ?? "—"));
+  const lat = Number(n.lat);
+  const lon = Number(n.lon);
+  const coord =
+    Number.isFinite(lat) && Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "—";
+  const lineEsc = escapeHtml(lineRu);
+  const hint = escapeHtml(`${lineRu}: ${n.name || ""} | WGS84 ${coord}`);
+  return `<div class="zp-item" title="${hint}">
+    <span class="zp-item-ico">${ic}</span>
+    <div class="zp-item-main">
+      <div class="zp-item-line">${lineEsc}</div>
+      <div class="zp-item-val">${name} · <span class="zp-mono">${dm} м</span></div>
+    </div>
+  </div>`;
+}
+
+export function buildPlacementHtml(placement) {
+  if (!placement || typeof placement !== "object") return "";
+  const r = placement.radius_m ?? 400;
+  const summary = escapeHtml(placement.summary || "");
+  const ncr = placement.competitors_in_radius;
+  const head = `<div class="zp-placement-head">
+    <div class="zp-item-line"><strong>Зона размещения АТМ</strong> · окружность ~${escapeHtml(String(r))} м</div>
+    <div class="zp-placement-summary">${summary}</div>
+    ${typeof ncr === "number" ? `<div class="zp-item-line zp-muted">Конкурентов в радиусе: ${escapeHtml(String(ncr))}</div>` : ""}
+  </div>`;
+
+  const rows = [
+    distPoiRow("🚇", "Метро (ближайшая станция)", placement.nearest_metro),
+    distPoiRow("🏢", "ТЦ / крупная торговля", placement.nearest_mall),
+    distPoiRow("🛒", "Рынок", placement.nearest_market),
+    distPoiRow("🔧", "Строймагазин", placement.nearest_hardware),
+    distPoiRow("🎓", "ВУЗ", placement.nearest_university),
+    distPoiRow("🏛", "Офис (справочник)", placement.nearest_office),
+    distPoiRow("🏧", "Банкомат ВТБ", placement.nearest_vtb_atm),
+    distPoiRow("🏪", "Банкомат конкурента", placement.nearest_competitor_atm),
+  ].join("");
+
+  return `<div class="zp-placement">${head}<div class="zp-list zp-list-tight">${rows}</div></div>`;
 }

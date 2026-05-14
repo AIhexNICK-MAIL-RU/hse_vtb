@@ -32,6 +32,8 @@ TABLES = [
     ("metro", "metro.csv"),
     ("malls", "malls.csv"),
     ("universities", "universities.csv"),
+    ("markets", "markets.csv"),
+    ("hardware_stores", "hardware_stores.csv"),
     ("priority_zones", "priority_zones.csv"),
 ]
 
@@ -103,6 +105,9 @@ def main() -> int:
             if df.empty and table == "dataset_final":
                 print("error: dataset_final пустой", file=sys.stderr)
                 return 1
+            if df.empty or len(df.columns) == 0:
+                print(f"  {table}: пропуск (нет файла или пустой {fname})")
+                continue
             df.to_sql(table, con, if_exists="replace", index=False)
             print(f"  {table}: {len(df)} rows")
 

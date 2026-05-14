@@ -196,14 +196,17 @@ def load_priority_zones(data_dir: Path) -> pd.DataFrame:
 
 
 def load_poi_layers(data_dir: Path) -> dict[str, pd.DataFrame]:
-    return {
+    out = {
         "vtb_atms": _read_table(data_dir / "vtb_atms.csv"),
         "offices": _read_table(data_dir / "offices.csv"),
         "competitor_atms": _read_table(data_dir / "competitor_atms.csv"),
         "metro": _read_table(data_dir / "metro.csv"),
         "malls": _read_table(data_dir / "malls.csv"),
         "universities": _read_table(data_dir / "universities.csv"),
+        "markets": _read_table(data_dir / "markets.csv"),
+        "hardware_stores": _read_table(data_dir / "hardware_stores.csv"),
     }
+    return out
 
 
 FEATURE_COLUMNS = [

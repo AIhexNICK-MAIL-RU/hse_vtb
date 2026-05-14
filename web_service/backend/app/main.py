@@ -19,6 +19,7 @@ from app.schemas import (
     HealthResponse,
     IngestResponse,
     NewBuildingOut,
+    PlacementOut,
     RetrainResponse,
     SummaryResponse,
     ZoneOut,
@@ -26,6 +27,7 @@ from app.schemas import (
 )
 from app.services.developments import developments_geojson
 from app.services.features import FEATURE_COLUMNS, h3_to_polygon_geojson
+from app.services.poi_distances import build_placement_payload, poi_layers_to_geojson
 from app.services.summary import build_summary
 from app.state import state
 
@@ -34,7 +36,7 @@ API_PREFIX = os.environ.get("GEOATM_API_PREFIX", "").strip().rstrip("/")
 STATIC_DIR = Path(os.environ.get("GEOATM_STATIC_DIR", "").strip())
 
 
-def _row_to_zone(r: Any) -> ZoneOut:
+def _row_to_zone(r: Any, placement: PlacementOut | None = None) -> ZoneOut:
     tags = r["scenario_tags"] if isinstance(r["scenario_tags"], list) else []
     poly = h3_to_polygon_geojson(str(r["h3_index"]))
     return ZoneOut(
@@ -53,6 +55,7 @@ def _row_to_zone(r: Any) -> ZoneOut:
         mall_count=int(r["mall_count"]),
         university_count=int(r["university_count"]),
         polygon=poly,
+        placement=placement,
     )
 
 
@@ -162,6 +165,14 @@ def get_developments() -> DevelopmentsResponse:
     return DevelopmentsResponse(count=len(items), items=items, geojson=gj, source=str(src) if src else None)
 
 
+@router.get("/poi/geojson")
+def poi_geojson() -> dict[str, Any]:
+    """Точечные слои POI для карты (конкуренты, метро, ВТБ, офисы и т.д.)."""
+    if not state.loaded():
+        raise HTTPException(status_code=503, detail="Данные не загружены.")
+    return poi_layers_to_geojson(state.poi or {})
+
+
 @router.get("/zones", response_model=ZonesResponse)
 def zones(
     scenario: str = Query(default="any"),
@@ -173,6 +184,10 @@ def zones(
     min_score: float | None = Query(default=None, description="Порог по эвристическому Demand Score"),
     min_ml: float | None = Query(default=None),
     limit: int = Query(default=300, ge=1, le=3000),
+    include_placement: bool = Query(
+        default=False,
+        description="Добавить расстояния до POI, окружность (radius_m) и текст зоны размещения АТМ",
+    ),
 ) -> ZonesResponse:
     if not state.loaded() or state.df is None:
         raise HTTPException(status_code=503, detail="Данные не загружены. Вызовите POST /ingest.")
@@ -194,7 +209,30 @@ def zones(
             & (d["lat"] <= max_lat)
         ]
     d = d.sort_values("ml_score", ascending=False).head(limit)
-    zones_out = [_row_to_zone(r) for _, r in d.iterrows()]
+    rad = int(settings.merged_config.get("ui", {}).get("placement_radius_m", 400))
+    zones_out: list[ZoneOut] = []
+    for _, r in d.iterrows():
+        pl: PlacementOut | None = None
+        if include_placement and state.poi is not None:
+            raw_tags = r["scenario_tags"]
+            if isinstance(raw_tags, list):
+                tags_list = [str(x) for x in raw_tags]
+            elif hasattr(raw_tags, "tolist"):
+                tags_list = [str(x) for x in raw_tags.tolist()]
+            else:
+                tags_list = []
+            raw_pl = build_placement_payload(
+                float(r["lat"]),
+                float(r["lon"]),
+                str(r["h3_index"]),
+                state.poi,
+                radius_m=rad,
+                ml_score=float(r["ml_score"]),
+                heuristic_score=float(r["heuristic_score"]),
+                scenario_tags=tags_list,
+            )
+            pl = PlacementOut.model_validate(raw_pl)
+        zones_out.append(_row_to_zone(r, pl))
     return ZonesResponse(model_version=state.model_version, count=len(zones_out), zones=zones_out)
 
 

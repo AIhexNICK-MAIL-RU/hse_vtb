@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
-import { CircleMarker, LayerGroup, MapContainer, Popup, TileLayer, GeoJSON, useMap } from "react-leaflet";
+import { CircleMarker, Circle, LayerGroup, MapContainer, Popup, TileLayer, GeoJSON, Tooltip, useMap } from "react-leaflet";
 import { buildZonePopupHtml, DEV_POPUP, formatNum } from "./glossary.js";
 
 /** Прод: тот же хост, префикс /api. Подпуть деплоя: учитываем import.meta.env.BASE_URL (Vite). */
@@ -14,6 +14,39 @@ const API_BASE =
 
 const HEALTH_POLL_MS = 2000;
 const HEALTH_WAIT_MS = 180_000;
+
+const POI_LAYER_ORDER = [
+  "competitor_atms",
+  "vtb_atms",
+  "metro",
+  "malls",
+  "universities",
+  "offices",
+  "markets",
+  "hardware_stores",
+];
+
+const POI_LAYER_LABELS = {
+  competitor_atms: "Банкоматы конкурентов",
+  vtb_atms: "Банкоматы ВТБ",
+  metro: "Метро",
+  malls: "ТЦ / торговля",
+  universities: "ВУЗы",
+  offices: "Офисы",
+  markets: "Рынки",
+  hardware_stores: "Строймагазины",
+};
+
+const POI_DOT = {
+  competitor_atms: { r: 5, color: "#14532d", fill: "#22c55e" },
+  vtb_atms: { r: 5, color: "#1e3a8a", fill: "#2563eb" },
+  metro: { r: 5, color: "#155e75", fill: "#06b6d4" },
+  malls: { r: 4, color: "#9a3412", fill: "#fb923c" },
+  universities: { r: 4, color: "#5b21b6", fill: "#a855f7" },
+  offices: { r: 3, color: "#374151", fill: "#94a3b8" },
+  markets: { r: 4, color: "#92400e", fill: "#fbbf24" },
+  hardware_stores: { r: 4, color: "#78350f", fill: "#d97706" },
+};
 
 function FitBoth({ zonesGeo, devGeo }) {
   const map = useMap();
@@ -62,7 +95,7 @@ function DevFieldRow({ meta, children, valueTitle }) {
           <span className="zp-item-sep">·</span>
           <span className="zp-item-suffix">{meta.suffix}</span>
         </div>
-        <div className="zp-item-val" title={valueTitle}>
+        <div className="zp-item-val" title={valueTitle || meta.hint}>
           {children}
         </div>
       </div>
@@ -82,6 +115,18 @@ export default function App() {
   const [developments, setDevelopments] = useState([]);
   const [devSource, setDevSource] = useState("");
   const [backendStatus, setBackendStatus] = useState("Проверка API…");
+  const [poiGeo, setPoiGeo] = useState(null);
+  const [showPlacementCircles, setShowPlacementCircles] = useState(true);
+  const [poiVisibility, setPoiVisibility] = useState({
+    competitor_atms: true,
+    vtb_atms: true,
+    metro: true,
+    malls: true,
+    universities: true,
+    offices: false,
+    markets: true,
+    hardware_stores: true,
+  });
 
   const geojson = useMemo(() => {
     const features = zones.map((z) => ({
@@ -91,6 +136,7 @@ export default function App() {
         ml: z.ml_score,
         ds: z.heuristic_score,
         tags: z.scenario_tags?.join(", ") || "",
+        placement: z.placement || null,
       },
       geometry: {
         type: "Polygon",
@@ -99,6 +145,15 @@ export default function App() {
     }));
     return { type: "FeatureCollection", features };
   }, [zones]);
+
+  const poiCounts = useMemo(() => {
+    if (!poiGeo) return {};
+    const o = {};
+    for (const k of POI_LAYER_ORDER) {
+      o[k] = poiGeo[k]?.features?.length ?? 0;
+    }
+    return o;
+  }, [poiGeo]);
 
   const devGeoJson = useMemo(() => {
     const features = developments.map((d) => ({
@@ -156,6 +211,7 @@ export default function App() {
       const params = new URLSearchParams();
       params.set("scenario", scenario);
       params.set("limit", String(limit));
+      params.set("include_placement", "true");
       if (minScore !== "") params.set("min_score", minScore);
       const res = await fetch(`${API_BASE}/zones?${params.toString()}`);
       if (res.status === 503) {
@@ -172,6 +228,17 @@ export default function App() {
       setBackendStatus(`Не удалось загрузить зоны: ${e?.message || e}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPoiLayers() {
+    try {
+      const res = await fetch(`${API_BASE}/poi/geojson`);
+      if (!res.ok) throw new Error(await res.text());
+      setPoiGeo(await res.json());
+    } catch (e) {
+      console.error(e);
+      setPoiGeo(null);
     }
   }
 
@@ -199,6 +266,7 @@ export default function App() {
       if (ok) {
         await loadZones();
         await loadDevelopments();
+        await loadPoiLayers();
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,6 +297,23 @@ export default function App() {
           точек: {developments.length}
           {devSource ? ` · файл: ${devSource.split("/").pop()}` : ""}
         </div>
+
+        <div className="panel-sub">Слои POI · координаты в подсказке при наведении</div>
+        <label className="row-check row-check-dense" title="Окружность вокруг центра ячейки H3 — зона оценки точки размещения АТМ (радиус из конфига API).">
+          <input type="checkbox" checked={showPlacementCircles} onChange={(e) => setShowPlacementCircles(e.target.checked)} />
+          Окружность зоны АТМ
+        </label>
+        {POI_LAYER_ORDER.map((k) => (
+          <label key={k} className="row-check row-check-dense">
+            <input
+              type="checkbox"
+              checked={!!poiVisibility[k]}
+              disabled={(poiCounts[k] ?? 0) === 0}
+              onChange={(e) => setPoiVisibility((prev) => ({ ...prev, [k]: e.target.checked }))}
+            />
+            {POI_LAYER_LABELS[k]} ({poiCounts[k] ?? "…"})
+          </label>
+        ))}
 
         <label title="Фильтр зон по меткам сценария в ячейке H3 (см. теги на карте).">
           Сценарий (теги H3)
@@ -266,8 +351,24 @@ export default function App() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <FitBoth zonesGeo={geojson} devGeo={showNewBuildings ? devGeoJson : { type: "FeatureCollection", features: [] }} />
+          {showPlacementCircles &&
+            zones.map((z) =>
+              z.placement ? (
+                <Circle
+                  key={`plc-${z.h3_index}`}
+                  center={[z.lat, z.lon]}
+                  radius={z.placement.radius_m}
+                  pathOptions={{
+                    color: "#1d4ed8",
+                    weight: 1,
+                    fillColor: "#2563eb",
+                    fillOpacity: 0.06,
+                  }}
+                />
+              ) : null,
+            )}
           <GeoJSON
-            key={modelVersion + scenario + zones.length}
+            key={`${modelVersion}-${scenario}-${zones.length}-p`}
             data={geojson}
             style={(feat) => {
               const ml = feat?.properties?.ml ?? 0;
@@ -283,6 +384,39 @@ export default function App() {
               layer.bindPopup(buildZonePopupHtml(p));
             }}
           />
+          {poiGeo &&
+            POI_LAYER_ORDER.map((k) => {
+              if (!poiVisibility[k]) return null;
+              const data = poiGeo[k];
+              if (!data?.features?.length) return null;
+              return (
+                <GeoJSON
+                  key={`poi-${k}-${data.features.length}`}
+                  data={data}
+                  pointToLayer={(feat, latlng) => {
+                    const kind = feat?.properties?.kind || k;
+                    const st = POI_DOT[kind] || POI_DOT.competitor_atms;
+                    return L.circleMarker(latlng, {
+                      radius: st.r,
+                      color: st.color,
+                      weight: 1,
+                      fillColor: st.fill,
+                      fillOpacity: 0.88,
+                    });
+                  }}
+                  onEachFeature={(feature, layer) => {
+                    const raw = feature.properties?.title_tooltip || "";
+                    const html = String(raw).replace(/\n/g, "<br/>");
+                    layer.bindTooltip(html, {
+                      sticky: true,
+                      direction: "top",
+                      opacity: 0.95,
+                      className: "poi-tip",
+                    });
+                  }}
+                />
+              );
+            })}
           {showNewBuildings && developments.length > 0 && (
             <LayerGroup>
               {developments.map((d) => (
@@ -297,6 +431,18 @@ export default function App() {
                     fillOpacity: 0.88,
                   }}
                 >
+                  <Tooltip direction="top" opacity={0.95} sticky className="poi-tip">
+                    {typeof d.lat === "number" && typeof d.lon === "number" ? (
+                      <>
+                        <div className="tip-title">{d.name || d.building_id || "Новостройка"}</div>
+                        <div className="tip-coords">
+                          {d.lat.toFixed(6)}, {d.lon.toFixed(6)}
+                        </div>
+                      </>
+                    ) : (
+                      "Нет координат"
+                    )}
+                  </Tooltip>
                   <Popup>
                     <div className="zp-shell dev-popup">
                       <div className="zp-header">
@@ -309,7 +455,14 @@ export default function App() {
                         </div>
                       </div>
                       <div className="zp-list">
-                        <DevFieldRow meta={DEV_POPUP.coords}>
+                        <DevFieldRow
+                          meta={DEV_POPUP.coords}
+                          valueTitle={
+                            typeof d.lat === "number" && typeof d.lon === "number"
+                              ? `WGS84: ${d.lat.toFixed(6)}, ${d.lon.toFixed(6)}`
+                              : undefined
+                          }
+                        >
                           <span className="zp-mono">
                             {typeof d.lat === "number" && typeof d.lon === "number"
                               ? `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`

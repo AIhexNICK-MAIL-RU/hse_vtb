@@ -20,6 +20,29 @@ class HealthResponse(BaseModel):
     )
 
 
+class NearestPoiOut(BaseModel):
+    name: str = ""
+    lat: float
+    lon: float
+    distance_m: int
+
+
+class PlacementOut(BaseModel):
+    """Контекст зоны размещения АТМ: радиус оценки и ближайшие POI (метры по геодезии)."""
+
+    radius_m: int = 400
+    summary: str = ""
+    competitors_in_radius: int = 0
+    nearest_metro: NearestPoiOut | None = None
+    nearest_mall: NearestPoiOut | None = None
+    nearest_market: NearestPoiOut | None = None
+    nearest_hardware: NearestPoiOut | None = None
+    nearest_university: NearestPoiOut | None = None
+    nearest_office: NearestPoiOut | None = None
+    nearest_vtb_atm: NearestPoiOut | None = None
+    nearest_competitor_atm: NearestPoiOut | None = None
+
+
 class ZoneOut(BaseModel):
     h3_index: str
     lat: float
@@ -36,6 +59,10 @@ class ZoneOut(BaseModel):
     mall_count: int
     university_count: int
     polygon: list[list[float]]  # GeoJSON ring: [lon, lat] pairs
+    placement: PlacementOut | None = Field(
+        default=None,
+        description="Заполняется при include_placement=1: расстояния до POI и текст про зону размещения",
+    )
 
 
 class ZonesResponse(BaseModel):
