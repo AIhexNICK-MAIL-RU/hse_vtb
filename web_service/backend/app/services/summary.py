@@ -42,18 +42,28 @@ def build_summary(df: pd.DataFrame, scenario: str, okrug: str | None) -> tuple[s
         + f". Рассмотрено H3-зон: {len(d2)}."
     )
     lines.append(
-        f"Средний эвристический Demand Score: {mean_h:.3f}; средний ML-скор (RandomForest по псевдо-меткам): {mean_ml:.3f}."
+        "Как читать цифры: геоиндекс H3 — ячейка гексагональной сетки для агрегатов. "
+        "ML-приоритет (0–1) — выход модели RandomForest по псевдо-меткам от эвристики; "
+        "им ранжируются зоны на карте. Эвристический Demand Score (0–1) — «сырой» спрос по правилам и признакам из CSV. "
+        "Уникальные клиенты и сумма операций (₽) — фактические агрегаты в ячейке (объём спроса). "
+        "Сценарные теги — бизнес-гипотезы (белые пятна, перехват конкурента и т.д.) по правилам; "
+        "часть сигналов в статическом CSV заменена прокси-признаками (см. scenario_analysis.html)."
     )
     lines.append(
-        f"Доля зон с тегом «белые пятна»: {share_white:.1%}; с тегом «перехват конкурента»: {share_comp:.1%}. "
-        "Теги основаны на правилах из scenario_analysis.html; часть сигналов (тренд спроса) в статическом CSV заменена прокси-признаками."
+        f"Средний эвристический Demand Score: {mean_h:.3f}; "
+        f"средний ML-приоритет (RandomForest по псевдо-меткам): {mean_ml:.3f}."
     )
-    lines.append("Топ-5 зон по ML-скору:")
+    lines.append(
+        f"Доля зон с тегом «белые пятна»: {share_white:.1%}; с тегом «перехват конкурента»: {share_comp:.1%}."
+    )
+    lines.append("Топ-5 зон по ML-приоритету:")
     for _, r in top.iterrows():
         tags = ", ".join(r["scenario_tags"]) if isinstance(r["scenario_tags"], list) else str(r["scenario_tags"])
         lines.append(
-            f"  • {r['h3_index']}: ML={float(r['ml_score']):.3f}, DS={float(r['heuristic_score']):.3f}, "
-            f"клиенты={int(r['unique_customers'])}, сумма={float(r['total_sum']):,.0f} ₽, теги=[{tags}]"
+            f"  • {r['h3_index']} (H3): ML-приоритет={float(r['ml_score']):.3f}, "
+            f"эвристический Demand Score={float(r['heuristic_score']):.3f}, "
+            f"уникальные клиенты={int(r['unique_customers'])}, сумма операций={float(r['total_sum']):,.0f} ₽, "
+            f"сценарные теги=[{tags}]"
         )
     risks: list[str] = []
     if float(d2["competitor_atm_count"].mean()) > 1.5:

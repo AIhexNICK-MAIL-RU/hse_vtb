@@ -116,6 +116,7 @@ export default function App() {
   const [devSource, setDevSource] = useState("");
   const [backendStatus, setBackendStatus] = useState("Проверка API…");
   const [poiGeo, setPoiGeo] = useState(null);
+  const [poiError, setPoiError] = useState("");
   const [showPlacementCircles, setShowPlacementCircles] = useState(true);
   const [poiVisibility, setPoiVisibility] = useState({
     competitor_atms: true,
@@ -232,6 +233,7 @@ export default function App() {
   }
 
   async function loadPoiLayers() {
+    setPoiError("");
     try {
       const res = await fetch(`${API_BASE}/poi/geojson`);
       if (!res.ok) throw new Error(await res.text());
@@ -239,6 +241,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
       setPoiGeo(null);
+      setPoiError(e?.message || String(e));
     }
   }
 
@@ -264,9 +267,7 @@ export default function App() {
     (async () => {
       const ok = await waitForDataReady();
       if (ok) {
-        await loadZones();
-        await loadDevelopments();
-        await loadPoiLayers();
+        await Promise.all([loadZones(), loadDevelopments(), loadPoiLayers()]);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -299,6 +300,10 @@ export default function App() {
         </div>
 
         <div className="panel-sub">Слои POI · координаты в подсказке при наведении</div>
+        {poiError ? <div className="meta warn">POI: {poiError}</div> : null}
+        {!poiError && poiGeo ? (
+          <div className="meta">Слои загружены; при 0 точек слой пустой (нет данных в справочнике).</div>
+        ) : null}
         <label className="row-check row-check-dense" title="Окружность вокруг центра ячейки H3 — зона оценки точки размещения АТМ (радиус из конфига API).">
           <input type="checkbox" checked={showPlacementCircles} onChange={(e) => setShowPlacementCircles(e.target.checked)} />
           Окружность зоны АТМ
@@ -308,10 +313,9 @@ export default function App() {
             <input
               type="checkbox"
               checked={!!poiVisibility[k]}
-              disabled={(poiCounts[k] ?? 0) === 0}
               onChange={(e) => setPoiVisibility((prev) => ({ ...prev, [k]: e.target.checked }))}
             />
-            {POI_LAYER_LABELS[k]} ({poiCounts[k] ?? "…"})
+            {POI_LAYER_LABELS[k]} ({poiGeo ? poiCounts[k] ?? 0 : "…"})
           </label>
         ))}
 

@@ -10,8 +10,10 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   height: 100vh;
+  min-height: 0;
+  min-width: 0;
 }
 
 .panel {
@@ -19,6 +21,9 @@ body {
   border-right: 1px solid #e2e8f0;
   background: #fff;
   overflow: auto;
+  min-height: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .panel h1 {
@@ -102,6 +107,10 @@ body {
 
 .map-wrap {
   height: 100vh;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .leaflet-container {

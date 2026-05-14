@@ -170,7 +170,8 @@ def poi_geojson() -> dict[str, Any]:
     """Точечные слои POI для карты (конкуренты, метро, ВТБ, офисы и т.д.)."""
     if not state.loaded():
         raise HTTPException(status_code=503, detail="Данные не загружены.")
-    return poi_layers_to_geojson(state.poi or {})
+    poi = state.poi if isinstance(state.poi, dict) else {}
+    return poi_layers_to_geojson(poi)
 
 
 @router.get("/zones", response_model=ZonesResponse)

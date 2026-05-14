@@ -9,6 +9,13 @@ import pandas as pd
 
 EARTH_R_M = 6_371_000.0
 
+
+def poi_layer_df(poi: dict[str, Any], key: str) -> pd.DataFrame:
+    """Взять слой POI из словаря. Нельзя писать `poi.get(k) or DataFrame()` — bool(DataFrame) запрещён."""
+    v = poi.get(key)
+    return v if isinstance(v, pd.DataFrame) else pd.DataFrame()
+
+
 _NAME_COLUMNS = (
     "name",
     "title",
@@ -166,21 +173,21 @@ def build_placement_payload(
     scenario_tags: list[str],
 ) -> dict[str, Any]:
     """Словарь под Pydantic PlacementOut."""
-    nm = nearest_poi(center_lat, center_lon, poi.get("metro") or pd.DataFrame(), fallback_name="станция")
-    mall = nearest_poi(center_lat, center_lon, poi.get("malls") or pd.DataFrame(), fallback_name="объект")
-    uni = nearest_poi(center_lat, center_lon, poi.get("universities") or pd.DataFrame(), fallback_name="ВУЗ")
-    off = nearest_poi(center_lat, center_lon, poi.get("offices") or pd.DataFrame(), fallback_name="офис")
-    vtb = nearest_poi(center_lat, center_lon, poi.get("vtb_atms") or pd.DataFrame(), fallback_name="ВТБ")
-    comp = nearest_poi(center_lat, center_lon, poi.get("competitor_atms") or pd.DataFrame(), fallback_name="конкурент")
-    mkt = nearest_poi(center_lat, center_lon, poi.get("markets") or pd.DataFrame(), fallback_name="рынок")
-    hw = nearest_poi(center_lat, center_lon, poi.get("hardware_stores") or pd.DataFrame(), fallback_name="строймагазин")
+    nm = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "metro"), fallback_name="станция")
+    mall = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "malls"), fallback_name="объект")
+    uni = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "universities"), fallback_name="ВУЗ")
+    off = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "offices"), fallback_name="офис")
+    vtb = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "vtb_atms"), fallback_name="ВТБ")
+    comp = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "competitor_atms"), fallback_name="конкурент")
+    mkt = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "markets"), fallback_name="рынок")
+    hw = nearest_poi(center_lat, center_lon, poi_layer_df(poi, "hardware_stores"), fallback_name="строймагазин")
 
-    n_comp = count_within_radius(center_lat, center_lon, poi.get("competitor_atms") or pd.DataFrame(), float(radius_m))
+    n_comp = count_within_radius(center_lat, center_lon, poi_layer_df(poi, "competitor_atms"), float(radius_m))
 
     tags_ru = ", ".join(scenario_tags) if scenario_tags else "без тегов"
     parts = [
         f"Кандидат на АТМ — центр ячейки H3; окружность ~{radius_m} м (пешая зона оценки). "
-        f"ML={ml_score:.3f}, DS={heuristic_score:.3f}; сценарии: {tags_ru}.",
+        f"ML-приоритет={ml_score:.3f}, эвристический Demand Score={heuristic_score:.3f}; сценарии: {tags_ru}.",
     ]
     if comp:
         parts.append(
@@ -221,6 +228,6 @@ def poi_layers_to_geojson(poi: dict[str, pd.DataFrame], max_per: int = 8000) -> 
     ]
     out: dict[str, Any] = {}
     for key, _df_key, fb in mapping:
-        feats = df_to_geojson_features(poi.get(key) or pd.DataFrame(), kind=key, label_fallback=fb, max_features=max_per)
+        feats = df_to_geojson_features(poi_layer_df(poi, key), kind=key, label_fallback=fb, max_features=max_per)
         out[key] = {"type": "FeatureCollection", "features": feats}
     return out
