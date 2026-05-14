@@ -1,0 +1,192 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ЦАО",
+        "okrug_name": "Центральный",
+        "estimated_monthly_income_rub": 120000,
+        "population_density_per_km2": 11000,
+        "district_characteristics": "Премиальный деловой центр, высокая стоимость жилья"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6176,
+          55.7558
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ЗАО",
+        "okrug_name": "Западный",
+        "estimated_monthly_income_rub": 95000,
+        "population_density_per_km2": 9000,
+        "district_characteristics": "Высокий уровень доходов, престижные жилые районы"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.45,
+          55.73
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ЮЗАО",
+        "okrug_name": "Юго-Западный",
+        "estimated_monthly_income_rub": 90000,
+        "population_density_per_km2": 11500,
+        "district_characteristics": "Сильная образовательная инфраструктура"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.54,
+          55.66
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "САО",
+        "okrug_name": "Северный",
+        "estimated_monthly_income_rub": 82000,
+        "population_density_per_km2": 12500,
+        "district_characteristics": "Развитая транспортная и бизнес-инфраструктура"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.53,
+          55.84
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "СЗАО",
+        "okrug_name": "Северо-Западный",
+        "estimated_monthly_income_rub": 80000,
+        "population_density_per_km2": 9800,
+        "district_characteristics": "Экологически благоприятные районы"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.43,
+          55.82
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ЮАО",
+        "okrug_name": "Южный",
+        "estimated_monthly_income_rub": 76000,
+        "population_density_per_km2": 13500,
+        "district_characteristics": "Смешанная жилая и промышленная застройка"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.65,
+          55.64
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ВАО",
+        "okrug_name": "Восточный",
+        "estimated_monthly_income_rub": 72000,
+        "population_density_per_km2": 12800,
+        "district_characteristics": "Плотная жилая застройка"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.8,
+          55.79
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "СВАО",
+        "okrug_name": "Северо-Восточный",
+        "estimated_monthly_income_rub": 74000,
+        "population_density_per_km2": 13200,
+        "district_characteristics": "Крупные жилые массивы"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.63,
+          55.86
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ЮВАО",
+        "okrug_name": "Юго-Восточный",
+        "estimated_monthly_income_rub": 68000,
+        "population_density_per_km2": 14500,
+        "district_characteristics": "Индустриальные зоны и доступное жильё"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.74,
+          55.69
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ЗелАО",
+        "okrug_name": "Зеленоградский",
+        "estimated_monthly_income_rub": 70000,
+        "population_density_per_km2": 5200,
+        "district_characteristics": "Низкая плотность, технопарк"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.18,
+          55.99
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "okrug_code": "ТиНАО",
+        "okrug_name": "Троицкий и Новомосковский",
+        "estimated_monthly_income_rub": 78000,
+        "population_density_per_km2": 1800,
+        "district_characteristics": "Быстрорастущая новая Москва"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.22,
+          55.45
+        ]
+      }
+    }
+  ]
+}

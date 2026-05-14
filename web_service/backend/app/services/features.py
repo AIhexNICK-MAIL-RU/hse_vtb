@@ -1,0 +1,212 @@
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Any
+
+import h3
+import numpy as np
+import pandas as pd
+
+
+def _read_table(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame()
+    text = path.read_text(encoding="utf-8", errors="replace").splitlines()[:3]
+    head = "\n".join(text)
+    sep = ";" if head.count(";") > head.count(",") else ","
+    return pd.read_csv(path, sep=sep)
+
+
+def _population_path(data_dir: Path) -> Path:
+    candidates = [
+        data_dir / "moscow_population_full.csv",
+        data_dir / "moscow_population_full (1).csv",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return data_dir / "moscow_population_full.csv"
+
+
+def load_okrug_reference(data_dir: Path) -> pd.DataFrame:
+    """Точки/метаданные округов из GeoJSON (в датасете — Point)."""
+    path = data_dir / "moscow_okrugs_demographics.geojson"
+    if not path.exists():
+        return pd.DataFrame(columns=["okrug_code", "okrug_name", "lat", "lon", "meta"])
+    import json
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    rows: list[dict[str, Any]] = []
+    for feat in raw.get("features", []):
+        geom = feat.get("geometry") or {}
+        props = feat.get("properties") or {}
+        coords = geom.get("coordinates")
+        if not coords or geom.get("type") != "Point":
+            continue
+        lon, lat = float(coords[0]), float(coords[1])
+        rows.append(
+            {
+                "okrug_code": str(props.get("okrug_code", "")),
+                "okrug_name": str(props.get("okrug_name", "")),
+                "lat": lat,
+                "lon": lon,
+                "meta": props,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def assign_okrug(lat: float, lon: float, ref: pd.DataFrame) -> str | None:
+    if ref.empty:
+        return None
+    best: tuple[float, str] | None = None
+    for _, r in ref.iterrows():
+        d = (lat - r["lat"]) ** 2 + (lon - r["lon"]) ** 2
+        code = r["okrug_code"] or r["okrug_name"]
+        if best is None or d < best[0]:
+            best = (d, str(code))
+    return best[1] if best else None
+
+
+def h3_to_latlon(h: str) -> tuple[float, float]:
+    lat, lng = h3.cell_to_latlng(h)
+    return float(lat), float(lng)
+
+
+def h3_to_polygon_geojson(h: str) -> list[list[float]]:
+    boundary = h3.cell_to_boundary(h)
+    ring: list[list[float]] = []
+    for lat, lng in boundary:
+        ring.append([float(lng), float(lat)])
+    if ring and ring[0] != ring[-1]:
+        ring.append(ring[0])
+    return ring
+
+
+def minmax_series(s: pd.Series) -> pd.Series:
+    s = pd.to_numeric(s, errors="coerce").astype(float)
+    lo, hi = float(np.nanmin(s)), float(np.nanmax(s))
+    if not math.isfinite(lo) or not math.isfinite(hi) or hi <= lo:
+        return pd.Series(np.zeros(len(s)), index=s.index)
+    return (s - lo) / (hi - lo)
+
+
+def compute_heuristic_scores(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
+    w = cfg.get("demand_score", {}).get("weights", {})
+    w_sum = float(w.get("total_sum", 0.35))
+    w_uc = float(w.get("unique_customers", 0.25))
+    w_tpc = float(w.get("transactions_per_customer", 0.20))
+    w_poi = float(w.get("poi_score", 0.12))
+    w_comp = float(w.get("competitor_proximity", 0.08))
+
+    out = df.copy()
+    out["norm_total_sum"] = minmax_series(out["total_sum"])
+    out["norm_unique_customers"] = minmax_series(out["unique_customers"])
+    out["norm_tpc"] = minmax_series(out["transactions_per_customer"])
+
+    poi = (
+        pd.to_numeric(out["metro_count"], errors="coerce").fillna(0)
+        + pd.to_numeric(out["mall_count"], errors="coerce").fillna(0)
+        + pd.to_numeric(out["university_count"], errors="coerce").fillna(0)
+    )
+    out["poi_score"] = poi
+    out["norm_poi"] = minmax_series(out["poi_score"])
+    out["norm_comp"] = minmax_series(out["competitor_atm_count"])
+
+    out["heuristic_score"] = (
+        w_sum * out["norm_total_sum"]
+        + w_uc * out["norm_unique_customers"]
+        + w_tpc * out["norm_tpc"]
+        + w_poi * out["norm_poi"]
+        + w_comp * out["norm_comp"]
+    ).clip(0, 1)
+    return out
+
+
+def tag_scenarios(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
+    out = df.copy()
+    scen = cfg.get("scenarios", {})
+    comp_min = int(scen.get("competitor_min_atms", 2))
+    low_pct = int(scen.get("low_utilization_sum_per_customer_percentile", 25))
+    vol_pct = int(scen.get("growth_volatility_percentile", 75))
+    ds_thr = float(cfg.get("demand_score", {}).get("white_spot_threshold", 0.70))
+    uc_pct = int(cfg.get("demand_score", {}).get("min_unique_customers_percentile", 50))
+
+    uc_thr = float(np.percentile(out["unique_customers"].astype(float), uc_pct))
+    spc_low = float(np.percentile(out["sum_per_customer"].astype(float), low_pct))
+    vol_thr = float(np.percentile(pd.to_numeric(out["avg_std"], errors="coerce").fillna(0), vol_pct))
+
+    tags: list[list[str]] = []
+    for _, r in out.iterrows():
+        t: list[str] = []
+        vtb = int(r["vtb_atm_count"])
+        comp = int(r["competitor_atm_count"])
+        atm_act = int(r.get("atm_activity", 0) or 0)
+        h = float(r["heuristic_score"])
+        uc = float(r["unique_customers"])
+        mall = int(r["mall_count"])
+        avg_std = float(r.get("avg_std") or 0) if pd.notna(r.get("avg_std")) else 0.0
+        spc = float(r.get("sum_per_customer") or 0)
+
+        if vtb == 0 and atm_act == 0 and uc >= uc_thr and h >= ds_thr:
+            t.append("white_spots")
+        if comp >= comp_min and vtb == 0:
+            t.append("competitor")
+        if (mall >= 1 or int(r["university_count"]) >= 1) and avg_std >= vol_thr:
+            t.append("growth_retail")
+        if vtb >= 1 and spc <= spc_low:
+            t.append("low_utilization")
+        tags.append(t)
+    out["scenario_tags"] = tags
+    return out
+
+
+def enrich_geo(df: pd.DataFrame, data_dir: Path, cfg: dict[str, Any]) -> pd.DataFrame:
+    out = df.copy()
+    latlons = [h3_to_latlon(h) for h in out["h3_index"].astype(str)]
+    out["lat"] = [x[0] for x in latlons]
+    out["lon"] = [x[1] for x in latlons]
+    ref = load_okrug_reference(data_dir)
+    out["okrug"] = [assign_okrug(lat, lon, ref) for lat, lon in zip(out["lat"], out["lon"], strict=False)]
+    return out
+
+
+def load_core_dataset(data_dir: Path) -> pd.DataFrame:
+    path = data_dir / "dataset_final.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"Нет dataset_final.csv в {data_dir}")
+    return pd.read_csv(path)
+
+
+def load_priority_zones(data_dir: Path) -> pd.DataFrame:
+    return _read_table(data_dir / "priority_zones.csv")
+
+
+def load_poi_layers(data_dir: Path) -> dict[str, pd.DataFrame]:
+    return {
+        "vtb_atms": _read_table(data_dir / "vtb_atms.csv"),
+        "offices": _read_table(data_dir / "offices.csv"),
+        "competitor_atms": _read_table(data_dir / "competitor_atms.csv"),
+        "metro": _read_table(data_dir / "metro.csv"),
+        "malls": _read_table(data_dir / "malls.csv"),
+        "universities": _read_table(data_dir / "universities.csv"),
+    }
+
+
+FEATURE_COLUMNS = [
+    "total_sum",
+    "unique_customers",
+    "transactions_per_customer",
+    "records_per_customer",
+    "sum_per_customer",
+    "metro_count",
+    "mall_count",
+    "university_count",
+    "competitor_atm_count",
+    "vtb_atm_count",
+    "vtb_office_count",
+    "atm_activity",
+    "atm_active_customers",
+    "heuristic_score",
+]

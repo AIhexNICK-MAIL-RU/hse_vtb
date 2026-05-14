@@ -1,0 +1,1 @@
+"""VTB GeoATM analytics API."""

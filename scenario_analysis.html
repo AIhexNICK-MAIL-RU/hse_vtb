@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="slides-format" content="viewport">
+    <title>Сценарный анализ — Размещение банкоматов ВТБ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --color-bg: #0a0e1a;
+            --color-bg-deep: #050810;
+            --color-surface: #111827;
+            --color-text: #f0f4ff;
+            --color-text-secondary: #c5cde8;
+            --color-text-muted: #8892b0;
+            --color-accent-1: #3b82f6;
+            --color-accent-2: #06b6d4;
+            --color-accent-3: #8b5cf6;
+            --color-s1: #22c55e;
+            --color-s2: #f97316;
+            --color-s3: #a855f7;
+            --color-s4: #ef4444;
+            --color-glass-bg: rgba(255,255,255,0.05);
+            --color-glass-border: rgba(255,255,255,0.08);
+            --color-vignette: rgba(0,0,0,0.45);
+            --font-display: 'Cormorant Garamond', Georgia, serif;
+            --font-body: 'Manrope', sans-serif;
+        }
+    </style>
+    <style>
+        :root {
+            --color-bg: #0a0e1a;
+            --color-text: #f0f4ff;
+            --glow-color-rgb: 59,130,246;
+            --c-s1: 34,197,94;
+            --c-s2: 249,115,22;
+            --c-s3: 168,85,247;
+            --c-s4: 239,68,68;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { background: var(--color-bg); margin: 0; }
+        body { font-family: 'Manrope', sans-serif; color: var(--color-text); overflow: hidden; height: 100vh; width: 100vw; }
+        .deck { width: 100vw; height: 100vh; position: relative; }
+        .slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--color-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; transform: scale(0.95); transition: opacity 0.7s ease, transform 0.7s ease; pointer-events: none; overflow: hidden; }
+        .slide.active { opacity: 1; transform: scale(1); pointer-events: all; }
+        .slide > .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: clamp(1.2rem, 3vw, 3rem); }
+        .nav-controls { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; z-index: 100; background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); padding: 8px 22px; border-radius: 40px; border: 1px solid rgba(255,255,255,0.08); }
+        .nav-btn { width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.05); color: #3b82f6; border-radius: 50%; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.3s; }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); }
+        .slide-dots { display: flex; gap: 7px; }
+        .slide-dots .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); cursor: pointer; transition: background 0.3s, transform 0.3s; }
+        .slide-dots .dot.active { background: #3b82f6; transform: scale(1.3); }
+        .slide-counter { font-size: 0.75rem; color: #8892b0; min-width: 36px; text-align: center; }
+        .reveal { opacity: 0; transform: translateY(18px); }
+
+        /* Glow */
+        .text-glow { text-shadow: 0 0 20px rgba(59,130,246,0.5), 0 0 40px rgba(59,130,246,0.2); }
+        .s1-glow { text-shadow: 0 0 20px rgba(34,197,94,0.6); }
+        .s2-glow { text-shadow: 0 0 20px rgba(249,115,22,0.6); }
+        .s3-glow { text-shadow: 0 0 20px rgba(168,85,247,0.6); }
+        .s4-glow { text-shadow: 0 0 20px rgba(239,68,68,0.6); }
+        @keyframes glow-pulse {
+            0%,100% { box-shadow: 0 0 15px rgba(59,130,246,0.3); }
+            50% { box-shadow: 0 0 30px rgba(59,130,246,0.6); }
+        }
+        @keyframes float-slow {
+            0% { transform: translate(0,0) scale(1); }
+            33% { transform: translate(50px,-40px) scale(1.1); }
+            66% { transform: translate(-30px,35px) scale(0.92); }
+            100% { transform: translate(0,0) scale(1); }
+        }
+        @keyframes float-drift {
+            0% { transform: translate(0,0) rotate(0deg); }
+            50% { transform: translate(-45px,-55px) rotate(3deg); }
+            100% { transform: translate(0,0) rotate(0deg); }
+        }
+        @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+        .gradient-mesh { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+        .blob { position: absolute; border-radius: 50%; filter: blur(80px); animation: float-slow 12s ease-in-out infinite; }
+        .blob:nth-child(2) { animation: float-drift 16s ease-in-out infinite; }
+        .blob:nth-child(3) { animation: float-slow 20s ease-in-out infinite reverse; }
+        .slide::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none; background: radial-gradient(ellipse at center, transparent 50%, var(--color-vignette) 100%); }
+
+        /* Bars */
+        .bar-row { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+        .bar-label { font-size:0.78rem; color:#c5cde8; min-width:130px; font-weight:500; }
+        .bar-track { flex:1; height:22px; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden; position:relative; }
+        .bar-fill { height:100%; border-radius:6px; width:0%; transition: width 0.9s cubic-bezier(0.16,1,0.3,1); position:relative; }
+        .bar-val { font-size:0.78rem; color:#8892b0; min-width:50px; text-align:right; font-weight:600; }
+
+        /* Badge */
+        .scenario-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 14px; border-radius:20px; font-size:0.72rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:12px; }
+
+        /* Formula box */
+        .formula-box { background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:12px 18px; font-family:'JetBrains Mono','Courier New',monospace; font-size:0.82rem; color:#93c5fd; margin:10px 0; letter-spacing:0.01em; }
+
+        /* Step cards */
+        .step-row { display:flex; align-items:flex-start; gap:14px; margin-bottom:10px; }
+        .step-num { min-width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; flex-shrink:0; margin-top:2px; }
+
+        /* Map mock */
+        .map-zone { border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; }
+
+        /* Donut ring */
+        .donut-ring { stroke-dasharray: 251.3; stroke-dashoffset: 251.3; stroke-linecap: round; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="mouse-spotlight" style="position:fixed;inset:0;z-index:99;pointer-events:none;"></div>
+<div class="deck">
+
+<!-- ===== SLIDE 1: TITLE ===== -->
+<div class="slide slide-1 active" data-slide="1">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:520px;height:520px;top:-120px;right:-80px;background:#3b82f6;opacity:0.12;"></div>
+        <div class="blob" style="width:350px;height:350px;bottom:-80px;left:-60px;background:#8b5cf6;opacity:0.10;"></div>
+        <div class="blob" style="width:250px;height:250px;top:35%;left:12%;background:#06b6d4;opacity:0.08;"></div>
+    </div>
+    <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
+    <div class="content text-center">
+        <div style="font-size:4.5rem;margin-bottom:16px;animation:float 3s ease-in-out infinite;">🗺️</div>
+        <h1 class="font-display text-[clamp(2.2rem,5vw,4rem)] font-bold bg-linear-to-br from-accent-1 via-accent-2 to-accent-3 bg-clip-text text-transparent tracking-tight mb-4 reveal">Сценарный анализ зон</h1>
+        <p class="text-[clamp(0.85rem,1.4vw,1.1rem)] font-light text-text-muted tracking-[5px] uppercase reveal mb-6">размещение банкоматов ВТБ · GeoAnalytics Platform</p>
+        <div class="flex justify-center gap-4 reveal flex-wrap">
+            <div class="scenario-badge" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">⬜ Белые пятна</div>
+            <div class="scenario-badge" style="background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);color:#fb923c;">🏦 Перехват конкурента</div>
+            <div class="scenario-badge" style="background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.3);color:#c084fc;">🏗️ ЖК / ТЦ</div>
+            <div class="scenario-badge" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;">📉 Низкая загрузка</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 2: OVERVIEW — 4 сценария ===== -->
+<div class="slide slide-2" data-slide="2">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:380px;height:380px;top:-80px;right:-60px;background:#3b82f6;opacity:0.08;"></div>
+        <div class="blob" style="width:280px;height:280px;bottom:-60px;left:-40px;background:#06b6d4;opacity:0.07;"></div>
+    </div>
+    <div class="content">
+        <p class="text-text-muted text-xs uppercase tracking-widest mb-2 reveal">Обзор методологии</p>
+        <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-bold text-text mb-6 reveal">4 сценария ранжирования зон</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="reveal">
+            <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:12px;padding:18px;">
+                <div style="font-size:1.8rem;margin-bottom:8px;">⬜</div>
+                <div style="color:#4ade80;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Сценарий 1</div>
+                <div style="color:#f0f4ff;font-size:0.95rem;font-weight:600;margin-bottom:6px;">Белые пятна</div>
+                <div style="color:#8892b0;font-size:0.78rem;line-height:1.5;">Высокий спрос + нет ни одного банкомата ВТБ. Лучший ROI с нуля: клиенты есть, инфраструктуры нет.</div>
+                <div style="margin-top:10px;padding:6px 10px;background:rgba(34,197,94,0.1);border-radius:6px;">
+                    <span style="color:#4ade80;font-size:0.72rem;font-weight:600;">Ключ: </span>
+                    <span style="color:#a7f3d0;font-size:0.72rem;">vtb_atm_count = 0 AND demand_score ≥ P75</span>
+                </div>
+            </div>
+            <div style="background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:18px;">
+                <div style="font-size:1.8rem;margin-bottom:8px;">🏦</div>
+                <div style="color:#fb923c;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Сценарий 2</div>
+                <div style="color:#f0f4ff;font-size:0.95rem;font-weight:600;margin-bottom:6px;">Перехват конкурента</div>
+                <div style="color:#8892b0;font-size:0.78rem;line-height:1.5;">Конкуренты присутствуют, ВТБ — нет. Перехват трафика Сбера / Альфа без органического спроса.</div>
+                <div style="margin-top:10px;padding:6px 10px;background:rgba(249,115,22,0.1);border-radius:6px;">
+                    <span style="color:#fb923c;font-size:0.72rem;font-weight:600;">Ключ: </span>
+                    <span style="color:#fed7aa;font-size:0.72rem;">competitor_atm_count ≥ 2 AND vtb_atm_count = 0</span>
+                </div>
+            </div>
+            <div style="background:rgba(168,85,247,0.07);border:1px solid rgba(168,85,247,0.25);border-radius:12px;padding:18px;">
+                <div style="font-size:1.8rem;margin-bottom:8px;">🏗️</div>
+                <div style="color:#c084fc;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Сценарий 3</div>
+                <div style="color:#f0f4ff;font-size:0.95rem;font-weight:600;margin-bottom:6px;">Новые / старые ЖК·ТЦ</div>
+                <div style="color:#8892b0;font-size:0.78rem;line-height:1.5;">Динамика активности: рост = новое строительство, снижение = реновация / снос. Опережающий сигнал.</div>
+                <div style="margin-top:10px;padding:6px 10px;background:rgba(168,85,247,0.1);border-radius:6px;">
+                    <span style="color:#c084fc;font-size:0.72rem;font-weight:600;">Ключ: </span>
+                    <span style="color:#e9d5ff;font-size:0.72rem;">growth_rate &gt; +20% OR growth_rate &lt; -20%</span>
+                </div>
+            </div>
+            <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:18px;">
+                <div style="font-size:1.8rem;margin-bottom:8px;">📉</div>
+                <div style="color:#f87171;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Сценарий 4</div>
+                <div style="color:#f0f4ff;font-size:0.95rem;font-weight:600;margin-bottom:6px;">Низкая загрузка</div>
+                <div style="color:#8892b0;font-size:0.78rem;line-height:1.5;">Уже установленные банкоматы ВТБ с падающим трафиком. Кандидаты на переброс или реконфигурацию.</div>
+                <div style="margin-top:10px;padding:6px 10px;background:rgba(239,68,68,0.1);border-radius:6px;">
+                    <span style="color:#f87171;font-size:0.72rem;font-weight:600;">Ключ: </span>
+                    <span style="color:#fecaca;font-size:0.72rem;">vtb_atm_count ≥ 1 AND txn_trend &lt; -15%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 3: СЦЕНАРИЙ 1 — БЕЛЫЕ ПЯТНА (критерии) ===== -->
+<div class="slide slide-3" data-slide="3">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:400px;height:400px;top:-100px;right:-70px;background:#22c55e;opacity:0.09;"></div>
+        <div class="blob" style="width:240px;height:240px;bottom:-50px;left:-30px;background:#06b6d4;opacity:0.07;"></div>
+    </div>
+    <div class="content">
+        <div class="scenario-badge reveal" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">⬜ Сценарий 1 — Белые пятна</div>
+        <h2 class="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-bold text-text mb-1 reveal">Критерии и расчёт Demand Score</h2>
+        <p class="text-text-muted text-sm mb-4 reveal">Зоны H3 (res.9) с высоким спросом и отсутствием любого банкомата ВТБ</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="reveal">
+            <div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px;margin-bottom:12px;">
+                    <div style="color:#4ade80;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">📋 Фильтр-условия (обязательные)</div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(34,197,94,0.2);color:#4ade80;">1</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#86efac;">vtb_atm_count = 0</code> — нет ни одного банкомата ВТБ</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(34,197,94,0.2);color:#4ade80;">2</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#86efac;">atm_activity = 0</code> — зона исторически не обслуживалась банкоматом ВТБ</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(34,197,94,0.2);color:#4ade80;">3</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#86efac;">unique_customers ≥ P50</code> — не менее медианного числа уникальных клиентов</div>
+                    </div>
+                </div>
+                <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:14px;">
+                    <div style="color:#4ade80;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">⚖️ Веса компонентов Demand Score</div>
+                    <div class="bar-row"><span class="bar-label">Транзакции (total_sum)</span><div class="bar-track"><div class="bar-fill" data-width="35%" style="background:linear-gradient(90deg,#22c55e,#4ade80);"></div></div><span class="bar-val" style="color:#4ade80;">35%</span></div>
+                    <div class="bar-row"><span class="bar-label">Уник. клиенты</span><div class="bar-track"><div class="bar-fill" data-width="25%" style="background:linear-gradient(90deg,#22c55e,#4ade80);"></div></div><span class="bar-val" style="color:#4ade80;">25%</span></div>
+                    <div class="bar-row"><span class="bar-label">Транзакций на клиента</span><div class="bar-track"><div class="bar-fill" data-width="20%" style="background:linear-gradient(90deg,#22c55e,#4ade80);"></div></div><span class="bar-val" style="color:#4ade80;">20%</span></div>
+                    <div class="bar-row"><span class="bar-label">Инфраструктура (POI)</span><div class="bar-track"><div class="bar-fill" data-width="12%" style="background:linear-gradient(90deg,#22c55e,#4ade80);"></div></div><span class="bar-val" style="color:#4ade80;">12%</span></div>
+                    <div class="bar-row"><span class="bar-label">Конкурентный буфер</span><div class="bar-track"><div class="bar-fill" data-width="8%" style="background:linear-gradient(90deg,#22c55e,#4ade80);"></div></div><span class="bar-val" style="color:#4ade80;">8%</span></div>
+                </div>
+            </div>
+            <div>
+                <div class="formula-box reveal" style="margin-bottom:12px;border-color:rgba(34,197,94,0.3);">
+                    <div style="color:#4ade80;font-size:0.7rem;margin-bottom:6px;font-weight:700;">DEMAND SCORE FORMULA</div>
+                    <div>DS = 0.35 × norm(total_sum)</div>
+                    <div style="margin-left:36px;">+ 0.25 × norm(unique_customers)</div>
+                    <div style="margin-left:36px;">+ 0.20 × norm(txn_per_customer)</div>
+                    <div style="margin-left:36px;">+ 0.12 × norm(poi_score)</div>
+                    <div style="margin-left:36px;">+ 0.08 × norm(comp_proximity_bonus)</div>
+                    <div style="margin-top:8px;color:#86efac;">→ norm(x) = (x − min) / (max − min)</div>
+                    <div style="color:#86efac;">→ Threshold: DS ≥ 0.70 (топ-25%)</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px;">
+                    <div style="color:#93c5fd;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">🗺️ Слои карты для этого сценария</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <div style="width:14px;height:14px;border-radius:3px;background:#22c55e;flex-shrink:0;"></div>
+                            <span style="font-size:0.78rem;color:#c5cde8;">Зелёный — DS ≥ 0.70, vtb=0 → <strong>Рекомендуется</strong></span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <div style="width:14px;height:14px;border-radius:3px;background:#facc15;flex-shrink:0;"></div>
+                            <span style="font-size:0.78rem;color:#c5cde8;">Жёлтый — DS 0.5–0.70 → <strong>Наблюдение</strong></span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <div style="width:14px;height:14px;border-radius:3px;background:#ef4444;flex-shrink:0;"></div>
+                            <span style="font-size:0.78rem;color:#c5cde8;">Серый — DS &lt; 0.50 → <strong>Низкий приоритет</strong></span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <div style="width:14px;height:14px;border-radius:3px;background:#3b82f6;flex-shrink:0;"></div>
+                            <span style="font-size:0.78rem;color:#c5cde8;">Синий — уже установленный ВТБ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 4: БЕЛЫЕ ПЯТНА — Расчёт и топ-зоны ===== -->
+<div class="slide slide-4" data-slide="4">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:360px;height:360px;top:-80px;right:-50px;background:#22c55e;opacity:0.08;"></div>
+        <div class="blob" style="width:220px;height:220px;bottom:-40px;left:-30px;background:#06b6d4;opacity:0.06;"></div>
+    </div>
+    <div class="content">
+        <div class="scenario-badge reveal" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">⬜ Сценарий 1 — Результаты расчёта</div>
+        <h2 class="font-display text-[clamp(1.4rem,2.8vw,2rem)] font-bold text-text mb-4 reveal">Топ-5 «Белых пятен» по Demand Score</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="reveal">
+            <div>
+                <table style="width:100%;border-collapse:collapse;font-size:0.77rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <th style="text-align:left;padding:6px 8px;color:#8892b0;font-weight:600;font-size:0.7rem;">H3-зона</th>
+                            <th style="text-align:right;padding:6px 8px;color:#8892b0;font-weight:600;font-size:0.7rem;">Клиенты</th>
+                            <th style="text-align:right;padding:6px 8px;color:#8892b0;font-weight:600;font-size:0.7rem;">Сумма, ₽</th>
+                            <th style="text-align:right;padding:6px 8px;color:#8892b0;font-weight:600;font-size:0.7rem;">DS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:7px 8px;color:#c5cde8;font-weight:600;">Z-84F1</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">1 243</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">4.8M</td>
+                            <td style="text-align:right;padding:7px 8px;"><span style="background:rgba(34,197,94,0.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-weight:700;">0.91</span></td>
+                        </tr>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:7px 8px;color:#c5cde8;font-weight:600;">Z-3C2A</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">987</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">3.9M</td>
+                            <td style="text-align:right;padding:7px 8px;"><span style="background:rgba(34,197,94,0.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-weight:700;">0.87</span></td>
+                        </tr>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:7px 8px;color:#c5cde8;font-weight:600;">Z-7BE9</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">876</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">3.4M</td>
+                            <td style="text-align:right;padding:7px 8px;"><span style="background:rgba(34,197,94,0.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-weight:700;">0.83</span></td>
+                        </tr>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:7px 8px;color:#c5cde8;font-weight:600;">Z-A1D3</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">754</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">2.9M</td>
+                            <td style="text-align:right;padding:7px 8px;"><span style="background:rgba(250,204,21,0.2);color:#facc15;padding:2px 8px;border-radius:20px;font-weight:700;">0.76</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:7px 8px;color:#c5cde8;font-weight:600;">Z-0F55</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">698</td>
+                            <td style="text-align:right;padding:7px 8px;color:#c5cde8;">2.6M</td>
+                            <td style="text-align:right;padding:7px 8px;"><span style="background:rgba(250,204,21,0.2);color:#facc15;padding:2px 8px;border-radius:20px;font-weight:700;">0.71</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin-top:12px;padding:10px 14px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);border-radius:8px;">
+                    <div style="color:#4ade80;font-size:0.72rem;font-weight:700;margin-bottom:4px;">📊 Автоматизация</div>
+                    <div style="color:#a7f3d0;font-size:0.76rem;line-height:1.5;">SQL-запрос + Python-скрипт ежедневно пересчитывает DS для всех 8 154 H3-зон. Обновление карты через WebSocket — задержка &lt; 5 сек.</div>
+                </div>
+            </div>
+            <div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px;margin-bottom:12px;">
+                    <div style="color:#93c5fd;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">🎛️ Фильтры интерфейса</div>
+                    <div style="display:flex;flex-direction:column;gap:7px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:0.78rem;color:#c5cde8;">Порог Demand Score</span>
+                            <div style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:2px 10px;color:#93c5fd;font-size:0.75rem;font-weight:700;">≥ 0.70</div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:0.78rem;color:#c5cde8;">Мин. уникальных клиентов</span>
+                            <div style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:2px 10px;color:#93c5fd;font-size:0.75rem;font-weight:700;">≥ 500</div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:0.78rem;color:#c5cde8;">Мин. оборот зоны</span>
+                            <div style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:2px 10px;color:#93c5fd;font-size:0.75rem;font-weight:700;">≥ 1.0M ₽</div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:0.78rem;color:#c5cde8;">Тип POI</span>
+                            <div style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:2px 10px;color:#93c5fd;font-size:0.75rem;font-weight:700;">ТЦ / Метро / ЖК</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;text-align:center;">
+                        <div style="font-size:1.6rem;font-weight:700;color:#4ade80;" data-count="127">0</div>
+                        <div style="font-size:0.7rem;color:#8892b0;margin-top:2px;">зон-кандидатов DS≥0.70</div>
+                    </div>
+                    <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;text-align:center;">
+                        <div style="font-size:1.6rem;font-weight:700;color:#4ade80;" data-count="23">0</div>
+                        <div style="font-size:0.7rem;color:#8892b0;margin-top:2px;">в шорт-листе (DS≥0.85)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 5: СЦЕНАРИЙ 2 — ПЕРЕХВАТ КОНКУРЕНТА ===== -->
+<div class="slide slide-5" data-slide="5">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:400px;height:400px;top:-90px;right:-60px;background:#f97316;opacity:0.09;"></div>
+        <div class="blob" style="width:260px;height:260px;bottom:-50px;left:-30px;background:#fbbf24;opacity:0.07;"></div>
+    </div>
+    <div class="content">
+        <div class="scenario-badge reveal" style="background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);color:#fb923c;">🏦 Сценарий 2 — Перехват конкурента</div>
+        <h2 class="font-display text-[clamp(1.4rem,2.8vw,2rem)] font-bold text-text mb-3 reveal">Критерии, расчёт и карта угроз</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="reveal">
+            <div>
+                <div style="background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.25);border-radius:10px;padding:14px;margin-bottom:12px;">
+                    <div style="color:#fb923c;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">📋 Условия отбора</div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(249,115,22,0.2);color:#fb923c;">1</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fed7aa;">vtb_atm_count = 0</code> — ВТБ отсутствует в зоне</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(249,115,22,0.2);color:#fb923c;">2</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fed7aa;">competitor_atm_count ≥ 2</code> — минимум 2 банкомата Сбер / Альфа / Тинькофф</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(249,115,22,0.2);color:#fb923c;">3</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fed7aa;">vtb_clients_nearby ≥ 300</code> — клиенты ВТБ, вынужденные ходить к конкурентам</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(249,115,22,0.2);color:#fb923c;">4</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fed7aa;">avg_competitor_distance ≤ 400м</code> — буфер конкурентного присутствия</div>
+                    </div>
+                </div>
+                <div class="formula-box" style="border-color:rgba(249,115,22,0.3);">
+                    <div style="color:#fb923c;font-size:0.7rem;margin-bottom:6px;font-weight:700;">INTERCEPT SCORE</div>
+                    <div>IS = 0.40 × norm(competitor_atm_count)</div>
+                    <div style="margin-left:36px;">+ 0.30 × norm(vtb_clients_nearby)</div>
+                    <div style="margin-left:36px;">+ 0.20 × (1 − norm(avg_comp_dist))</div>
+                    <div style="margin-left:36px;">+ 0.10 × norm(mcc_cash_demand)</div>
+                    <div style="margin-top:8px;color:#fed7aa;">→ Шорт-лист: IS ≥ 0.75</div>
+                </div>
+            </div>
+            <div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;margin-bottom:12px;">
+                    <div style="color:#fb923c;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">📊 Топ-4 зоны перехвата</div>
+                    <div class="bar-row"><span class="bar-label" style="min-width:90px;">Z-F20B</span><div class="bar-track"><div class="bar-fill" data-width="92%" style="background:linear-gradient(90deg,#f97316,#fbbf24);"></div></div><span class="bar-val" style="color:#fb923c;">IS: 0.92</span></div>
+                    <div style="font-size:0.7rem;color:#8892b0;margin-bottom:8px;padding-left:102px;">Сбер×4, Альфа×2 · 620 клиентов ВТБ · 280м</div>
+                    <div class="bar-row"><span class="bar-label" style="min-width:90px;">Z-91CE</span><div class="bar-track"><div class="bar-fill" data-width="84%" style="background:linear-gradient(90deg,#f97316,#fbbf24);"></div></div><span class="bar-val" style="color:#fb923c;">IS: 0.84</span></div>
+                    <div style="font-size:0.7rem;color:#8892b0;margin-bottom:8px;padding-left:102px;">Сбер×3, Тинькофф×1 · 480 клиентов · 320м</div>
+                    <div class="bar-row"><span class="bar-label" style="min-width:90px;">Z-44A7</span><div class="bar-track"><div class="bar-fill" data-width="78%" style="background:linear-gradient(90deg,#f97316,#fbbf24);"></div></div><span class="bar-val" style="color:#fb923c;">IS: 0.78</span></div>
+                    <div style="font-size:0.7rem;color:#8892b0;padding-left:102px;">Альфа×3, Сбер×1 · 390 клиентов · 370м</div>
+                </div>
+                <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:10px;padding:12px;">
+                    <div style="color:#fb923c;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">🗺️ Слой карты: Конкурентная угроза</div>
+                    <div style="font-size:0.78rem;color:#c5cde8;line-height:1.6;">
+                        Тепловая карта: <strong style="color:#ef4444;">красный</strong> = высокий IS (Сбер/Альфа доминирует, нет ВТБ) · <strong style="color:#fbbf24;">жёлтый</strong> = умеренная угроза · <strong style="color:#22c55e;">зелёный</strong> = ВТБ уже присутствует.<br>
+                        Иконки конкурентов кластеризуются по типу банка. Клик — всплывающая карточка с IS, расстоянием, числом клиентов ВТБ.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 6: СЦЕНАРИЙ 3 — ЖК/ТЦ (критерии) ===== -->
+<div class="slide slide-6" data-slide="6">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:420px;height:420px;top:-100px;right:-70px;background:#a855f7;opacity:0.09;"></div>
+        <div class="blob" style="width:250px;height:250px;bottom:-50px;left:-30px;background:#7c3aed;opacity:0.07;"></div>
+    </div>
+    <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
+    <div class="content">
+        <div class="scenario-badge reveal" style="background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.3);color:#c084fc;">🏗️ Сценарий 3 — Новые / старые ЖК · ТЦ · БЦ</div>
+        <h2 class="font-display text-[clamp(1.4rem,2.8vw,2rem)] font-bold text-text mb-3 reveal">Динамический анализ активности зон</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="reveal">
+            <div>
+                <div style="background:rgba(168,85,247,0.07);border:1px solid rgba(168,85,247,0.25);border-radius:10px;padding:14px;margin-bottom:11px;">
+                    <div style="color:#c084fc;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">📈 РОСТ — Новое строительство</div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(168,85,247,0.2);color:#c084fc;">1</div>
+                        <div style="font-size:0.79rem;color:#c5cde8;"><code style="color:#e9d5ff;">txn_growth_rate ≥ +20%</code> (период T-3 → T, квартал)</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(168,85,247,0.2);color:#c084fc;">2</div>
+                        <div style="font-size:0.79rem;color:#c5cde8;"><code style="color:#e9d5ff;">new_accounts_growth ≥ +15%</code> — приток новых клиентов ВТБ</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(168,85,247,0.2);color:#c084fc;">3</div>
+                        <div style="font-size:0.79rem;color:#c5cde8;"><code style="color:#e9d5ff;">construction_flag = 1</code> — ЖК/ТЦ/БЦ в радиусе 500м (внешний источник: Росреестр, 2ГИС)</div>
+                    </div>
+                    <div style="margin-top:6px;padding:6px 10px;background:rgba(168,85,247,0.1);border-radius:6px;">
+                        <span style="color:#c084fc;font-size:0.72rem;font-weight:700;">Действие: </span>
+                        <span style="color:#e9d5ff;font-size:0.72rem;">Превентивная установка — до сдачи объекта ≥ 2 квартала</span>
+                    </div>
+                </div>
+                <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:14px;">
+                    <div style="color:#f87171;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">📉 СНИЖЕНИЕ — Реновация / снос</div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">1</div>
+                        <div style="font-size:0.79rem;color:#c5cde8;"><code style="color:#fecaca;">txn_decline_rate ≤ -20%</code> (3 последовательных квартала)</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">2</div>
+                        <div style="font-size:0.79rem;color:#c5cde8;"><code style="color:#fecaca;">renovation_flag = 1</code> — программа реновации Москвы (публичный слой ДГИ)</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">3</div>
+                        <div style="font-size:0.79rem;color:#c5cde8;"><code style="color:#fecaca;">active_clients_delta ≤ -30%</code> — активные клиенты за 12 мес.</div>
+                    </div>
+                    <div style="margin-top:6px;padding:6px 10px;background:rgba(239,68,68,0.1);border-radius:6px;">
+                        <span style="color:#f87171;font-size:0.72rem;font-weight:700;">Действие: </span>
+                        <span style="color:#fecaca;font-size:0.72rem;">Запланировать вывод банкомата до отключения зоны</span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div class="formula-box" style="border-color:rgba(168,85,247,0.3);margin-bottom:11px;">
+                    <div style="color:#c084fc;font-size:0.7rem;margin-bottom:6px;font-weight:700;">GROWTH SIGNAL SCORE (GSS)</div>
+                    <div>GSS = sign(growth_rate) × (</div>
+                    <div style="margin-left:24px;">0.45 × |norm(txn_growth_rate)|</div>
+                    <div style="margin-left:24px;">+ 0.30 × |norm(new_acc_growth)|</div>
+                    <div style="margin-left:24px;">+ 0.25 × construction_weight</div>
+                    <div>)</div>
+                    <div style="margin-top:8px;color:#e9d5ff;">→ GSS ≥ +0.60: Зона роста 🟢</div>
+                    <div style="color:#fecaca;">→ GSS ≤ −0.60: Зона упадка 🔴</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:12px;">
+                    <div style="color:#c084fc;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">🗺️ Слои карты</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;font-size:0.78rem;color:#c5cde8;line-height:1.5;">
+                        <div>🟢 <strong>Зелёный градиент</strong> — GSS ≥ 0.60, рост: новые ЖК/ТЦ</div>
+                        <div>🔴 <strong>Красный градиент</strong> — GSS ≤ −0.60, упадок: реновация</div>
+                        <div>🏗️ <strong>Иконки объектов</strong> — строящиеся ЖК/ТЦ/БЦ из 2ГИС + Росреестра</div>
+                        <div>📅 <strong>Ось времени</strong> — слайдер для просмотра изменений по кварталам</div>
+                        <div>⚠️ <strong>Алерт-слой</strong> — зоны с bank_atm=1 и GSS ≤ −0.60 (приоритет вывода)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 7: СЦЕНАРИЙ 4 — НИЗКАЯ ЗАГРУЗКА ===== -->
+<div class="slide slide-7" data-slide="7">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:420px;height:420px;top:-100px;right:-70px;background:#ef4444;opacity:0.09;"></div>
+        <div class="blob" style="width:250px;height:250px;bottom:-50px;left:-30px;background:#f97316;opacity:0.07;"></div>
+    </div>
+    <div class="content">
+        <div class="scenario-badge reveal" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;">📉 Сценарий 4 — Низкая загрузка банкоматов ВТБ</div>
+        <h2 class="font-display text-[clamp(1.4rem,2.8vw,2rem)] font-bold text-text mb-3 reveal">Критерии выявления и действия</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="reveal">
+            <div>
+                <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:14px;margin-bottom:11px;">
+                    <div style="color:#f87171;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">📋 Условия выявления</div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">1</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fecaca;">vtb_atm_count ≥ 1</code> — банкомат ВТБ установлен</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">2</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fecaca;">txn_per_day ≤ P25</code> — транзакций/день ниже 25-го перцентиля</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">3</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fecaca;">txn_trend_12m ≤ -15%</code> — снижение за последние 12 месяцев</div>
+                    </div>
+                    <div class="step-row">
+                        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#f87171;">4</div>
+                        <div style="font-size:0.8rem;color:#c5cde8;"><code style="color:#fecaca;">utilization_rate ≤ 30%</code> — загрузка &lt; 30% от нормативной</div>
+                    </div>
+                </div>
+                <div class="formula-box" style="border-color:rgba(239,68,68,0.3);">
+                    <div style="color:#f87171;font-size:0.7rem;margin-bottom:6px;font-weight:700;">UNDERLOAD SCORE (US)</div>
+                    <div>US = 0.40 × (1 − norm(txn_per_day))</div>
+                    <div style="margin-left:36px;">+ 0.35 × |norm(txn_decline_12m)|</div>
+                    <div style="margin-left:36px;">+ 0.25 × (1 − norm(util_rate))</div>
+                    <div style="margin-top:8px;color:#fecaca;">→ US ≥ 0.70: Высокий риск простоя</div>
+                    <div style="color:#fecaca;">→ Рекомендация: переброс / ребалансировка</div>
+                </div>
+            </div>
+            <div>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;margin-bottom:11px;">
+                    <div style="color:#f87171;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">⚡ Действия по результатам</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                            <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(239,68,68,0.2);color:#f87171;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">A</div>
+                            <div style="font-size:0.79rem;color:#c5cde8;"><strong style="color:#f87171;">Переброс в «Белое пятно»</strong> — связать US с DS: если рядом есть зона DS ≥ 0.80, предложить переброс</div>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                            <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(249,115,22,0.2);color:#fb923c;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">B</div>
+                            <div style="font-size:0.79rem;color:#c5cde8;"><strong style="color:#fb923c;">Ребалансировка</strong> — изменить режим работы (24/7 → дневной), снизить затраты</div>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                            <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(250,204,21,0.2);color:#facc15;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">C</div>
+                            <div style="font-size:0.79rem;color:#c5cde8;"><strong style="color:#facc15;">Мониторинг</strong> — 3 мес. наблюдение, повторная оценка после ремонта / реновации</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:#f87171;" data-count="84">0</div>
+                        <div style="font-size:0.7rem;color:#8892b0;margin-top:2px;">банкоматов ВТБ с US≥0.70</div>
+                    </div>
+                    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:#f87171;" data-count="31">0</div>
+                        <div style="font-size:0.7rem;color:#8892b0;margin-top:2px;">рекомендованы к перебросу</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 8: АЛГОРИТМ АВТОМАТИЗАЦИИ ===== -->
+<div class="slide slide-8" data-slide="8">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:380px;height:380px;top:-80px;right:-60px;background:#3b82f6;opacity:0.08;"></div>
+        <div class="blob" style="width:240px;height:240px;bottom:-50px;left:-30px;background:#8b5cf6;opacity:0.07;"></div>
+    </div>
+    <div class="content">
+        <p class="text-text-muted text-xs uppercase tracking-widest mb-2 reveal">Архитектура системы</p>
+        <h2 class="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-bold text-text mb-4 reveal">Автоматизированный pipeline</h2>
+        <div style="display:flex;align-items:center;gap:0;margin-bottom:16px;" class="reveal">
+            <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:12px 14px;text-align:center;min-width:130px;">
+                <div style="font-size:1.3rem;margin-bottom:4px;">📥</div>
+                <div style="font-size:0.72rem;font-weight:700;color:#93c5fd;">Источники данных</div>
+                <div style="font-size:0.67rem;color:#8892b0;margin-top:3px;">Транзакции · POI · Конкуренты · Росреестр</div>
+            </div>
+            <div style="flex:1;height:2px;background:linear-gradient(90deg,rgba(59,130,246,0.5),rgba(139,92,246,0.5));"></div>
+            <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:10px;padding:12px 14px;text-align:center;min-width:130px;">
+                <div style="font-size:1.3rem;margin-bottom:4px;">⚙️</div>
+                <div style="font-size:0.72rem;font-weight:700;color:#a78bfa;">Scoring Engine</div>
+                <div style="font-size:0.67rem;color:#8892b0;margin-top:3px;">DS · IS · GSS · US — ежедневный пересчёт</div>
+            </div>
+            <div style="flex:1;height:2px;background:linear-gradient(90deg,rgba(139,92,246,0.5),rgba(6,182,212,0.5));"></div>
+            <div style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.3);border-radius:10px;padding:12px 14px;text-align:center;min-width:130px;">
+                <div style="font-size:1.3rem;margin-bottom:4px;">🗺️</div>
+                <div style="font-size:0.72rem;font-weight:700;color:#67e8f9;">GeoAnalytics Map</div>
+                <div style="font-size:0.67rem;color:#8892b0;margin-top:3px;">Kepler.gl / Mapbox · H3-тайлы</div>
+            </div>
+            <div style="flex:1;height:2px;background:linear-gradient(90deg,rgba(6,182,212,0.5),rgba(34,197,94,0.5));"></div>
+            <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:12px 14px;text-align:center;min-width:130px;">
+                <div style="font-size:1.3rem;margin-bottom:4px;">📋</div>
+                <div style="font-size:0.72rem;font-weight:700;color:#4ade80;">Dashboard + Алерты</div>
+                <div style="font-size:0.67rem;color:#8892b0;margin-top:3px;">Шорт-лист · Email / Telegram-бот</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;" class="reveal">
+            <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;">
+                <div style="color:#4ade80;font-size:0.7rem;font-weight:700;margin-bottom:6px;">⬜ Белые пятна</div>
+                <div style="font-size:0.72rem;color:#8892b0;line-height:1.5;">Ежедневно: SQL-фильтр vtb=0, DS-нормализация, топ-50 в шорт-лист</div>
+            </div>
+            <div style="background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:12px;">
+                <div style="color:#fb923c;font-size:0.7rem;font-weight:700;margin-bottom:6px;">🏦 Перехват</div>
+                <div style="font-size:0.72rem;color:#8892b0;line-height:1.5;">Ежедневно: парсинг конкурентных точек, IS-расчёт, алерт при IS≥0.80</div>
+            </div>
+            <div style="background:rgba(168,85,247,0.07);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:12px;">
+                <div style="color:#c084fc;font-size:0.7rem;font-weight:700;margin-bottom:6px;">🏗️ ЖК/ТЦ</div>
+                <div style="font-size:0.72rem;color:#8892b0;line-height:1.5;">Еженедельно: GSS-тренд, синхронизация с Росреестром, прогноз сдачи объектов</div>
+            </div>
+            <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;">
+                <div style="color:#f87171;font-size:0.7rem;font-weight:700;margin-bottom:6px;">📉 Загрузка</div>
+                <div style="font-size:0.72rem;color:#8892b0;line-height:1.5;">Ежедневно: US-мониторинг, автосвязка US↔DS для предложений по перебросу</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 9: КОНЦЕПЦИЯ КАРТЫ ===== -->
+<div class="slide slide-9" data-slide="9">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:380px;height:380px;top:-80px;right:-60px;background:#06b6d4;opacity:0.08;"></div>
+        <div class="blob" style="width:240px;height:240px;bottom:-50px;left:-30px;background:#3b82f6;opacity:0.07;"></div>
+    </div>
+    <div class="content">
+        <p class="text-text-muted text-xs uppercase tracking-widest mb-2 reveal">Интерфейс</p>
+        <h2 class="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-bold text-text mb-4 reveal">Карта для бизнес-пользователя</h2>
+        <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;" class="reveal">
+            <!-- Map mock -->
+            <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:14px;position:relative;min-height:240px;">
+                <div style="color:#67e8f9;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">🗺️ Интерактивная H3-карта Москвы</div>
+                <div style="display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(5,1fr);gap:3px;height:160px;">
+                    <!-- Row 1 -->
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(34,197,94,0.45);color:#fff;">⬜</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.06);"></div>
+                    <div class="map-zone" style="background:rgba(249,115,22,0.45);color:#fff;">🏦</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(59,130,246,0.45);color:#fff;">✓</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(168,85,247,0.35);color:#fff;">🏗</div>
+                    <!-- Row 2 -->
+                    <div class="map-zone" style="background:rgba(34,197,94,0.3);"></div>
+                    <div class="map-zone" style="background:rgba(34,197,94,0.6);color:#fff;font-size:0.9rem;">⬜</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.06);"></div>
+                    <div class="map-zone" style="background:rgba(249,115,22,0.6);color:#fff;">🏦</div>
+                    <div class="map-zone" style="background:rgba(239,68,68,0.45);color:#fff;">📉</div>
+                    <div class="map-zone" style="background:rgba(59,130,246,0.45);color:#fff;">✓</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <!-- Row 3 -->
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.06);"></div>
+                    <div class="map-zone" style="background:rgba(168,85,247,0.5);color:#fff;">🏗</div>
+                    <div class="map-zone" style="background:rgba(34,197,94,0.4);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(249,115,22,0.35);"></div>
+                    <div class="map-zone" style="background:rgba(239,68,68,0.5);color:#fff;">📉</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <!-- Row 4 -->
+                    <div class="map-zone" style="background:rgba(34,197,94,0.5);color:#fff;">⬜</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.06);"></div>
+                    <div class="map-zone" style="background:rgba(249,115,22,0.5);color:#fff;">🏦</div>
+                    <div class="map-zone" style="background:rgba(59,130,246,0.45);color:#fff;">✓</div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(168,85,247,0.4);"></div>
+                    <div class="map-zone" style="background:rgba(34,197,94,0.35);"></div>
+                    <!-- Row 5 -->
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(239,68,68,0.45);color:#fff;">📉</div>
+                    <div class="map-zone" style="background:rgba(34,197,94,0.4);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.06);"></div>
+                    <div class="map-zone" style="background:rgba(168,85,247,0.5);color:#fff;">🏗</div>
+                    <div class="map-zone" style="background:rgba(59,130,246,0.35);"></div>
+                    <div class="map-zone" style="background:rgba(255,255,255,0.04);"></div>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:4px;align-items:center;"><div style="width:10px;height:10px;border-radius:2px;background:#22c55e;"></div><span style="font-size:0.67rem;color:#8892b0;">⬜ Белое пятно</span></div>
+                    <div style="display:flex;gap:4px;align-items:center;"><div style="width:10px;height:10px;border-radius:2px;background:#f97316;"></div><span style="font-size:0.67rem;color:#8892b0;">🏦 Перехват</span></div>
+                    <div style="display:flex;gap:4px;align-items:center;"><div style="width:10px;height:10px;border-radius:2px;background:#a855f7;"></div><span style="font-size:0.67rem;color:#8892b0;">🏗 ЖК/ТЦ</span></div>
+                    <div style="display:flex;gap:4px;align-items:center;"><div style="width:10px;height:10px;border-radius:2px;background:#ef4444;"></div><span style="font-size:0.67rem;color:#8892b0;">📉 Загрузка</span></div>
+                    <div style="display:flex;gap:4px;align-items:center;"><div style="width:10px;height:10px;border-radius:2px;background:#3b82f6;"></div><span style="font-size:0.67rem;color:#8892b0;">✓ ВТБ активен</span></div>
+                </div>
+            </div>
+            <!-- Controls panel -->
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+                    <div style="color:#93c5fd;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">🎛️ Панель фильтров</div>
+                    <div style="font-size:0.77rem;color:#c5cde8;display:flex;flex-direction:column;gap:5px;">
+                        <div style="display:flex;justify-content:space-between;"><span>Сценарий</span><span style="color:#3b82f6;font-weight:600;">Все / Один</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span>Score порог</span><span style="color:#3b82f6;font-weight:600;">Слайдер 0–1</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span>Тип POI</span><span style="color:#3b82f6;font-weight:600;">ЖК/ТЦ/Метро</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span>Период</span><span style="color:#3b82f6;font-weight:600;">Квартал / год</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span>Конкуренты</span><span style="color:#3b82f6;font-weight:600;">Сбер/Альфа/Тинькофф</span></div>
+                    </div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+                    <div style="color:#93c5fd;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">📊 Клик по зоне → Карточка</div>
+                    <div style="font-size:0.77rem;color:#c5cde8;display:flex;flex-direction:column;gap:4px;">
+                        <div>• DS / IS / GSS / US — все 4 скора</div>
+                        <div>• Уник. клиенты, оборот, ТПК</div>
+                        <div>• POI в радиусе 500м</div>
+                        <div>• Конкуренты: тип + число</div>
+                        <div>• График динамики (12 мес.)</div>
+                        <div>• Кнопка «Добавить в шорт-лист»</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 10: CLOSING ===== -->
+<div class="slide slide-10" data-slide="10">
+    <div class="gradient-mesh">
+        <div class="blob" style="width:520px;height:520px;top:-120px;right:-80px;background:#3b82f6;opacity:0.13;"></div>
+        <div class="blob" style="width:360px;height:360px;bottom:-80px;left:-60px;background:#8b5cf6;opacity:0.10;"></div>
+        <div class="blob" style="width:250px;height:250px;top:30%;left:10%;background:#06b6d4;opacity:0.08;"></div>
+    </div>
+    <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
+    <div class="content text-center">
+        <div style="font-size:3.5rem;margin-bottom:14px;animation:float 3s ease-in-out infinite;">🏧</div>
+        <h2 class="font-display text-[clamp(1.8rem,4vw,3rem)] font-bold bg-linear-to-br from-accent-1 via-accent-2 to-accent-3 bg-clip-text text-transparent mb-4 reveal">4 сценария — единая система</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" class="reveal">
+            <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:4px;">⬜</div>
+                <div style="color:#4ade80;font-size:0.75rem;font-weight:700;">Белые пятна</div>
+                <div style="color:#8892b0;font-size:0.7rem;margin-top:3px;">DS ≥ 0.70<br>vtb = 0</div>
+            </div>
+            <div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.25);border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:4px;">🏦</div>
+                <div style="color:#fb923c;font-size:0.75rem;font-weight:700;">Перехват</div>
+                <div style="color:#8892b0;font-size:0.7rem;margin-top:3px;">IS ≥ 0.75<br>comp ≥ 2</div>
+            </div>
+            <div style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.25);border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:4px;">🏗️</div>
+                <div style="color:#c084fc;font-size:0.75rem;font-weight:700;">ЖК / ТЦ</div>
+                <div style="color:#8892b0;font-size:0.7rem;margin-top:3px;">GSS ≥ ±0.60<br>динамика</div>
+            </div>
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:4px;">📉</div>
+                <div style="color:#f87171;font-size:0.75rem;font-weight:700;">Загрузка</div>
+                <div style="color:#8892b0;font-size:0.7rem;margin-top:3px;">US ≥ 0.70<br>trend &lt; -15%</div>
+            </div>
+        </div>
+        <p class="text-text-muted text-sm tracking-[4px] uppercase reveal">Автоматизация · Ежедневный пересчёт · GeoAnalytics Dashboard</p>
+    </div>
+</div>
+
+</div>
+<!-- NAV -->
+<div class="nav-controls">
+    <button class="nav-btn" onclick="changeSlide(-1)">&#8249;</button>
+    <div class="slide-dots" id="dots"></div>
+    <button class="nav-btn" onclick="changeSlide(1)">&#8250;</button>
+    <span class="slide-counter" id="counter">1 / 10</span>
+</div>
+
+<script>
+    let current = 1;
+    const total = document.querySelectorAll('.slide').length;
+    const dotsContainer = document.getElementById('dots');
+    const counter = document.getElementById('counter');
+    for (let i = 1; i <= total; i++) { const dot = document.createElement('div'); dot.className = 'dot' + (i === 1 ? ' active' : ''); dot.onclick = () => goToSlide(i); dotsContainer.appendChild(dot); }
+    function goToSlide(n) {
+        const prev = document.querySelector('.slide.active');
+        const next = document.querySelector('.slide[data-slide="' + n + '"]');
+        if (prev) prev.classList.remove('active');
+        if (next) { next.classList.add('active'); animateSlide(next); }
+        current = n; updateNav();
+    }
+    function changeSlide(dir) { let n = current + dir; if (n < 1) n = total; if (n > total) n = 1; goToSlide(n); }
+    function updateNav() { document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i + 1 === current)); counter.textContent = current + ' / ' + total; }
+    document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); changeSlide(1); } if (e.key === 'ArrowLeft') { e.preventDefault(); changeSlide(-1); } });
+    let tx = 0;
+    document.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => { const d = tx - e.changedTouches[0].clientX; if (Math.abs(d) > 50) changeSlide(d > 0 ? 1 : -1); });
+
+    function animateSlide(slide) {
+        slide.querySelectorAll('.reveal').forEach((el, i) => {
+            el.style.transition = 'none'; el.style.opacity = '0'; el.style.transform = 'translateY(18px)';
+            el.offsetHeight;
+            const delay = i * 0.08;
+            el.style.transition = 'opacity 0.35s ease ' + delay + 's, transform 0.35s ease ' + delay + 's';
+            el.style.opacity = '1'; el.style.transform = 'translateY(0)';
+        });
+        animateSlideEffects(slide);
+    }
+
+    function animateSlideEffects(slide) {
+        slide.querySelectorAll('[data-count]:not(.counted)').forEach(el => {
+            el.classList.add('counted');
+            const target = parseInt(el.dataset.count);
+            const suffix = el.dataset.suffix || '', prefix = el.dataset.prefix || '';
+            let cur = 0; const step = target / 40;
+            const t = setInterval(() => { cur += step; if (cur >= target) { cur = target; clearInterval(t); } el.textContent = prefix + Math.round(cur).toLocaleString() + suffix; }, 30);
+        });
+        slide.querySelectorAll('.bar-fill:not(.fill-init)').forEach((bar, i) => {
+            bar.classList.add('fill-init');
+            const w = bar.dataset.width || bar.style.width;
+            bar.style.width = '0%';
+            bar.offsetHeight;
+            setTimeout(() => { bar.style.width = w; }, 100 + i * 80);
+        });
+        slide.querySelectorAll('.donut-ring:not(.ring-init)').forEach(ring => {
+            ring.classList.add('ring-init');
+            ring.style.strokeDashoffset = '251.3'; ring.style.transition = 'stroke-dashoffset 0.8s ease';
+            ring.offsetHeight; ring.style.strokeDashoffset = 251.3 - (parseInt(ring.dataset.percent) / 100) * 251.3;
+        });
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        const sp = document.querySelector('.mouse-spotlight');
+        if (sp) sp.style.background = 'radial-gradient(600px circle at ' + e.clientX + 'px ' + e.clientY + 'px, rgba(59,130,246,0.05), transparent 40%)';
+    });
+
+    window.initParticles = function(canvas, opts) {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+        const interactive = opts.interactive !== false;
+        const count = opts.count || (interactive ? 50 : 16);
+        let mx = -1000, my = -1000;
+        const particles = Array.from({length: count}, () => ({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3, size: Math.random()*2+0.8, alpha: Math.random()*0.3+0.1 }));
+        if (interactive) { canvas.addEventListener('mousemove', (e) => { const r = canvas.getBoundingClientRect(); mx = e.clientX-r.left; my = e.clientY-r.top; }); canvas.addEventListener('mouseleave', () => { mx=-1000; my=-1000; }); }
+        (function animate() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            particles.forEach(p => {
+                if (interactive) { const dx=p.x-mx, dy=p.y-my, d=Math.sqrt(dx*dx+dy*dy); if (d<120) { const f=(120-d)/120*2; p.vx+=(dx/d)*f*0.1; p.vy+=(dy/d)*f*0.1; } }
+                p.vx*=0.98; p.vy*=0.98; p.x+=p.vx; p.y+=p.vy;
+                if(p.x<0)p.x=canvas.width; if(p.x>canvas.width)p.x=0; if(p.y<0)p.y=canvas.height; if(p.y>canvas.height)p.y=0;
+                ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fillStyle='rgba(59,130,246,'+p.alpha+')'; ctx.fill();
+            });
+            requestAnimationFrame(animate);
+        })();
+    };
+    document.querySelectorAll('.particle-canvas').forEach(c => window.initParticles(c, {interactive:true,count:50}));
+    document.querySelectorAll('.particle-canvas-ambient').forEach(c => window.initParticles(c, {interactive:false,count:16}));
+
+    try { animateSlide(document.querySelector('.slide.active')); } catch(e) {}
+</script>
+</body>
+</html>
