@@ -175,7 +175,13 @@ def enrich_geo(df: pd.DataFrame, data_dir: Path, cfg: dict[str, Any]) -> pd.Data
 def load_core_dataset(data_dir: Path) -> pd.DataFrame:
     path = data_dir / "dataset_final.csv"
     if not path.exists():
-        raise FileNotFoundError(f"Нет dataset_final.csv в {data_dir}")
+        hint = (
+            f"Нет dataset_final.csv в {data_dir}. "
+            "В облаке (Timeweb и др.): смонтируйте постоянное хранилище в каталог **/data** "
+            "внутри контейнера и загрузите туда файлы кейса (dataset_final.csv и справочники), "
+            "либо задайте GEOATM_DATA_DIR на каталог, где они уже лежат."
+        )
+        raise FileNotFoundError(hint)
     return pd.read_csv(path)
 
 
