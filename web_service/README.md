@@ -32,9 +32,9 @@ npm run dev
 docker compose up --build
 ```
 
-Поднимается сервис **`app`** (единый контейнер: nginx + FastAPI на `127.0.0.1:8000`). Это нужно для **Timeweb Cloud и аналогичных PaaS**, где нельзя полагаться на DNS-имя `api` между контейнерами — иначе nginx отдаёт **502**.
+Поднимается сервис **`app`** (единый контейнер: **один** uvicorn на `0.0.0.0:8080`, API с префиксом `/api`, статика из собранного фронта). Так нет 502 из‑за отсутствия хоста `api` и healthcheck сразу видит ответ на порту **8080** (корневой **`GET /health`**).
 
-- UI + API через один порт: `http://localhost:8080` (прокси `/api/` → uvicorn).
+- UI + API через один порт: `http://localhost:8080` (`/api/...` — REST, остальное — SPA).
 - Данные: том `..` → `/data` (корень кейса с `dataset_final.csv`).
 
 Раздельный режим (только локально): `docker compose --profile split up --build` — сервисы `api` (8000) и `web` (8081).
@@ -53,6 +53,9 @@ docker compose up --build
 
 | Переменная | Назначение |
 |------------|------------|
+| `PORT` | Порт HTTP внутри контейнера (по умолчанию **8080** в образе `app`) |
+| `GEOATM_API_PREFIX` | Префикс REST (в образе **`/api`**; локально с Vite — пусто) |
+| `GEOATM_STATIC_DIR` | Каталог со статикой SPA (в образе **`/app/static`**) |
 | `GEOATM_DATA_DIR` | Каталог с `dataset_final.csv` и справочниками |
 | `GEOATM_AUTO_INGEST` | `1` — загрузить данные при старте API |
 | `GEOATM_CONFIG_PATH` | Путь к YAML, переопределяющему `backend/config/default.yaml` |

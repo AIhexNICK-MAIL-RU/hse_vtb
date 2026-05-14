@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import APIRouter, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.schemas import (
@@ -26,6 +28,10 @@ from app.services.features import FEATURE_COLUMNS, h3_to_polygon_geojson
 from app.services.ml_train import local_explain_row
 from app.services.summary import build_summary
 from app.state import state
+
+# В проде (Timeweb): GEOATM_API_PREFIX=/api + статика; локально с Vite — префикс пустой (прокси срезает /api).
+API_PREFIX = os.environ.get("GEOATM_API_PREFIX", "").strip().rstrip("/")
+STATIC_DIR = Path(os.environ.get("GEOATM_STATIC_DIR", "").strip())
 
 
 def _row_to_zone(r: Any) -> ZoneOut:
@@ -50,29 +56,7 @@ def _row_to_zone(r: Any) -> ZoneOut:
     )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    auto = os.environ.get("GEOATM_AUTO_INGEST", "1").lower() in {"1", "true", "yes"}
-    if auto:
-        try:
-            state.ingest(settings.data_dir)
-        except Exception as e:  # noqa: BLE001
-            state.last_error = str(e)
-    yield
-
-
-app = FastAPI(title="VTB GeoATM Analytics", version="1.0.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=os.environ.get("GEOATM_CORS_ORIGINS", "*").split(","),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
+def _health_response() -> HealthResponse:
     return HealthResponse(
         status="ok" if state.loaded() else "degraded",
         data_loaded=state.loaded(),
@@ -83,7 +67,51 @@ def health() -> HealthResponse:
     )
 
 
-@app.post("/ingest", response_model=IngestResponse)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Тяжёлый ingest не блокирует приём TCP/HTTP — иначе healthcheck PaaS падает по таймауту."""
+    auto = os.environ.get("GEOATM_AUTO_INGEST", "1").lower() in {"1", "true", "yes"}
+    if auto:
+
+        def _ingest_sync() -> None:
+            try:
+                state.ingest(settings.data_dir)
+            except Exception as e:  # noqa: BLE001
+                state.last_error = str(e)
+
+        asyncio.create_task(asyncio.to_thread(_ingest_sync))
+    yield
+
+
+_docs = f"{API_PREFIX}/docs" if API_PREFIX else "/docs"
+_openapi = f"{API_PREFIX}/openapi.json" if API_PREFIX else "/openapi.json"
+
+app = FastAPI(
+    title="VTB GeoATM Analytics",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url=_docs,
+    openapi_url=_openapi,
+    redoc_url=None,
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("GEOATM_CORS_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+router = APIRouter()
+
+if API_PREFIX:
+
+    @router.get("/health", response_model=HealthResponse)
+    def health_api() -> HealthResponse:
+        return _health_response()
+
+
+@router.post("/ingest", response_model=IngestResponse)
 def ingest(data_dir: str | None = Query(default=None)) -> IngestResponse:
     root = Path(data_dir) if data_dir else settings.data_dir
     try:
@@ -99,7 +127,7 @@ def ingest(data_dir: str | None = Query(default=None)) -> IngestResponse:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@app.get("/developments", response_model=DevelopmentsResponse)
+@router.get("/developments", response_model=DevelopmentsResponse)
 def get_developments() -> DevelopmentsResponse:
     """Новостройки: отдельный delivery_score по сроку сдачи (файл `new_buildings.csv` или GEOATM_NEW_BUILDINGS_CSV)."""
     items = [NewBuildingOut.model_validate(x) for x in state.developments]
@@ -108,7 +136,7 @@ def get_developments() -> DevelopmentsResponse:
     return DevelopmentsResponse(count=len(items), items=items, geojson=gj, source=str(src) if src else None)
 
 
-@app.get("/zones", response_model=ZonesResponse)
+@router.get("/zones", response_model=ZonesResponse)
 def zones(
     scenario: str = Query(default="any"),
     okrug: str | None = Query(default=None),
@@ -144,7 +172,7 @@ def zones(
     return ZonesResponse(model_version=state.model_version, count=len(zones_out), zones=zones_out)
 
 
-@app.get("/zones/{h3}/explain", response_model=ExplainResponse)
+@router.get("/zones/{h3}/explain", response_model=ExplainResponse)
 def explain_zone(h3: str) -> ExplainResponse:
     if not state.loaded() or state.df is None or state.bundle is None:
         raise HTTPException(status_code=503, detail="Данные не загружены.")
@@ -186,7 +214,7 @@ def explain_zone(h3: str) -> ExplainResponse:
     )
 
 
-@app.get("/summary", response_model=SummaryResponse)
+@router.get("/summary", response_model=SummaryResponse)
 def summary(
     scenario: str = Query(default="any"),
     okrug: str | None = Query(default=None),
@@ -197,7 +225,7 @@ def summary(
     return SummaryResponse(model_version=state.model_version, scenario=scenario, okrug=okrug, text=text, stats=stats)
 
 
-@app.post("/retrain", response_model=RetrainResponse)
+@router.post("/retrain", response_model=RetrainResponse)
 def retrain(x_retrain_token: str | None = Header(default=None, alias="X-Retrain-Token")) -> RetrainResponse:
     token_cfg = str(settings.merged_config.get("security", {}).get("retrain_token", "dev-change-me"))
     env_tok = os.environ.get("GEOATM_RETRAIN_TOKEN")
@@ -214,3 +242,20 @@ def retrain(x_retrain_token: str | None = Header(default=None, alias="X-Retrain-
         )
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+# --- регистрация API: с префиксом /api (прод) или без (локально + Vite proxy) ---
+if API_PREFIX:
+    app.include_router(router, prefix=API_PREFIX)
+else:
+    app.include_router(router)
+
+
+@app.get("/health", response_model=HealthResponse)
+def health_liveness() -> HealthResponse:
+    """Для healthcheck провайдера (всегда на корне, без зависимости от GEOATM_API_PREFIX)."""
+    return _health_response()
+
+
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="spa")

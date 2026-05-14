@@ -10,6 +10,8 @@ services:
       PORT: "8080"
       GEOATM_DATA_DIR: /data
       GEOATM_AUTO_INGEST: "1"
+      GEOATM_API_PREFIX: /api
+      GEOATM_STATIC_DIR: /app/static
       GEOATM_CORS_ORIGINS: "*"
     volumes:
       - ..:/data:ro

@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
+
+
+def build_summary(df: pd.DataFrame, scenario: str, okrug: str | None) -> tuple[str, dict[str, Any]]:
     d = df if okrug is None or okrug == "" else df[df["okrug"].astype(str) == okrug]
     if d.empty:
         return (
