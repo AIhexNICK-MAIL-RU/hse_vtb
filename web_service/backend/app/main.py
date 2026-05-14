@@ -115,6 +115,17 @@ def health_liveness_head() -> Response:
     return Response(status_code=200)
 
 
+@app.get("/live", include_in_schema=False)
+def live_probe() -> PlainTextResponse:
+    """Самый дешёвый liveness для Docker/PaaS: без Pydantic и без обращения к state (ingest может грузить CPU)."""
+    return PlainTextResponse("ok", media_type="text/plain")
+
+
+@app.head("/live", include_in_schema=False)
+def live_probe_head() -> Response:
+    return Response(status_code=200)
+
+
 router = APIRouter()
 
 if API_PREFIX:

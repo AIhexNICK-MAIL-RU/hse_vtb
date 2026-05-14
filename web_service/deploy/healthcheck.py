@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Docker HEALTHCHECK: быстрый GET; короткий таймаут на запрос — укладываемся в HEALTHCHECK --timeout Docker."""
+"""Запасной HTTP-liveness (compose/ручной запуск). В образе PaaS предпочтительно deploy/docker-health.sh + curl."""
 from __future__ import annotations
 
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-# Один запуск CMD не должен превышать HEALTHCHECK --timeout в Dockerfile.
-_REQ_TIMEOUT = 3
+_REQ_TIMEOUT = 2
+_MAX_TOTAL_SEC = 5.0
 
 
 def _parse_port(raw: str | None) -> int | None:
@@ -28,7 +29,6 @@ def _parse_port(raw: str | None) -> int | None:
 
 
 def _candidate_ports() -> list[int]:
-    """8080 первым — EXPOSE и Timeweb."""
     out: list[int] = []
 
     def add(p: int | None) -> None:
@@ -46,7 +46,6 @@ def _candidate_ports() -> list[int]:
 
 
 def _candidate_hosts() -> list[str]:
-    # Сначала 127.0.0.1 (надёжно с bind 0.0.0.0), затем localhost как в гайде Timeweb.
     return ["127.0.0.1", "localhost"]
 
 
@@ -61,7 +60,7 @@ def _probe_get(url: str) -> bool:
             code = int(resp.getcode())
             if not _ok_code(code):
                 return False
-            resp.read(4096)
+            resp.read(2048)
             return True
     except urllib.error.HTTPError as e:
         return _ok_code(int(e.code))
@@ -70,13 +69,19 @@ def _probe_get(url: str) -> bool:
 
 
 def main() -> int:
+    deadline = time.monotonic() + _MAX_TOTAL_SEC
     ports = _candidate_ports()
     hosts = _candidate_hosts()
-    paths = ("/health", "/")
+    paths = ("/live", "/health", "/")
     errs: list[str] = []
     for port in ports:
         for host in hosts:
             for path in paths:
+                if time.monotonic() > deadline:
+                    for line in errs[-8:]:
+                        print(line, file=sys.stderr)
+                    print("healthcheck: deadline exceeded", file=sys.stderr)
+                    return 1
                 url = f"http://{host}:{port}{path}"
                 if _probe_get(url):
                     return 0

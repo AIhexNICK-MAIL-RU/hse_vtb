@@ -25,7 +25,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GEOATM_STATIC_DIR=/app/static
 
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/app /app/app
 COPY backend/config /app/config
@@ -34,12 +37,14 @@ COPY --from=frontend /src/dist /app/static
 
 COPY deploy/start.sh /app/deploy/start.sh
 COPY deploy/healthcheck.py /app/deploy/healthcheck.py
-RUN chmod +x /app/deploy/start.sh /app/deploy/healthcheck.py
+COPY deploy/docker-health.sh /app/deploy/docker-health.sh
+RUN chmod +x /app/deploy/start.sh /app/deploy/healthcheck.py /app/deploy/docker-health.sh
 
 EXPOSE 8080
 
-# start-period: cold import + ingest; --timeout — лимит на один запуск CMD (healthcheck.py должен уложиться).
-HEALTHCHECK --interval=15s --timeout=30s --start-period=180s --retries=16 \
-  CMD ["/usr/local/bin/python3", "/app/deploy/healthcheck.py"]
+# curl: быстрее и предсказуее, чем отдельный Python-процесс, при малом --timeout у PaaS.
+# interval 8s → больше попыток за ~105s «окна» деплоя Timeweb; /live не трогает state.
+HEALTHCHECK --interval=8s --timeout=10s --start-period=300s --retries=30 \
+  CMD ["/app/deploy/docker-health.sh"]
 
 ENTRYPOINT ["/app/deploy/start.sh"]
