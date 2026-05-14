@@ -1,6 +1,6 @@
 # Единый образ для PaaS (Timeweb и т.п.): uvicorn на 0.0.0.0:8080 (см. GEOATM_BIND_INTERNAL_8080),
 # API под /api, статика SPA из dist, /health на корне для healthcheck.
-# sklearn подгружается только при ingest/explain — быстрее bind порта после старта.
+# Датасет по умолчанию: backend/app/embedded/geoatm.sqlite (см. scripts/build_embedded_sqlite.py); том /data опционален.
 
 FROM node:20-alpine AS frontend
 WORKDIR /src

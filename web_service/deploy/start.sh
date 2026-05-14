@@ -12,13 +12,17 @@ else
 fi
 printf '%s' "$LISTEN" > /tmp/.geoatm_listen_port
 DATA_DIR="${GEOATM_DATA_DIR:-/data}"
+EMB_SQL="/app/app/embedded/geoatm.sqlite"
 if [ "${GEOATM_AUTO_INGEST:-1}" != "0" ]; then
-  if [ ! -r "$DATA_DIR/dataset_final.csv" ]; then
-    echo "[start.sh] ОШИБКА ДАННЫХ: нет читаемого файла $DATA_DIR/dataset_final.csv" >&2
-    echo "[start.sh] Ingest не сможет загрузить модель. Подключите том/диск к контейнеру в точку /data" >&2
-    echo "[start.sh] и положите туда dataset_final.csv (корень кейса). Либо GEOATM_AUTO_INGEST=0 и POST /api/ingest после копирования." >&2
+  if [ -r "$DATA_DIR/dataset_final.csv" ]; then
+    echo "[start.sh] данные: CSV $DATA_DIR/dataset_final.csv" >&2
+  elif [ "${GEOATM_USE_SQLITE:-1}" != "0" ] && [ -r "$EMB_SQL" ]; then
+    echo "[start.sh] данные: встроенная БД $EMB_SQL (без тома /data)" >&2
+  elif [ "${GEOATM_USE_SQLITE:-1}" != "0" ] && [ -r "./app/embedded/geoatm.sqlite" ]; then
+    echo "[start.sh] данные: встроенная БД ./app/embedded/geoatm.sqlite" >&2
   else
-    echo "[start.sh] данные: $DATA_DIR/dataset_final.csv найден" >&2
+    echo "[start.sh] ВНИМАНИЕ: нет $DATA_DIR/dataset_final.csv и нет встроенной geoatm.sqlite — ingest может упасть." >&2
+    echo "[start.sh] Смонтируйте /data или соберите БД: python3 scripts/build_embedded_sqlite.py" >&2
   fi
 fi
 echo "[start.sh] uvicorn 0.0.0.0:${LISTEN}" >&2

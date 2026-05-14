@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 
 from app.config import settings
+from app.services.developments import load_developments, load_developments_from_df
 from app.services.features import (
     compute_heuristic_scores,
     enrich_geo,
@@ -17,7 +18,14 @@ from app.services.features import (
     load_priority_zones,
     tag_scenarios,
 )
-from app.services.developments import load_developments
+from app.services.sqlite_data import (
+    load_core_dataset_sqlite,
+    load_developments_rows_sqlite,
+    load_okrug_reference_sqlite,
+    load_poi_layers_sqlite,
+    load_priority_zones_sqlite,
+    resolve_sqlite_path,
+)
 
 
 def _version_token(df: pd.DataFrame, metrics: dict[str, Any]) -> str:
@@ -52,25 +60,54 @@ class AppState:
         self.developments = []
         self.developments_meta = {}
         try:
-            df = load_core_dataset(root)
-            df = compute_heuristic_scores(df, self.cfg)
-            df = tag_scenarios(df, self.cfg)
-            df = enrich_geo(df, root, self.cfg)
-            bundle = train_models(df, self.cfg)
-            df = df.copy()
-            df["ml_score"] = bundle["ml_score"].reindex(df.index).astype(float)
-            df["cluster_id"] = bundle["cluster_id"].reindex(df.index).astype(int)
-            metrics = bundle["metrics"]
-            self.model_version = _version_token(df, metrics)
-            self.df = df
-            self.bundle = bundle
-            self.poi = load_poi_layers(root)
-            self.priority_zones = load_priority_zones(root)
-            try:
-                self.developments, self.developments_meta = load_developments(root, self.cfg)
-            except Exception as e:  # noqa: BLE001
-                self.developments = []
-                self.developments_meta = {"source": None, "rows": 0, "errors": [str(e)]}
+            sqlite = resolve_sqlite_path()
+            if sqlite is not None:
+                df = load_core_dataset_sqlite(sqlite)
+                df = compute_heuristic_scores(df, self.cfg)
+                df = tag_scenarios(df, self.cfg)
+                okr = load_okrug_reference_sqlite(sqlite)
+                df = enrich_geo(df, root, self.cfg, okrug_ref=okr)
+                bundle = train_models(df, self.cfg)
+                df = df.copy()
+                df["ml_score"] = bundle["ml_score"].reindex(df.index).astype(float)
+                df["cluster_id"] = bundle["cluster_id"].reindex(df.index).astype(int)
+                metrics = bundle["metrics"]
+                self.model_version = _version_token(df, metrics)
+                self.df = df
+                self.bundle = bundle
+                self.poi = load_poi_layers_sqlite(sqlite)
+                self.priority_zones = load_priority_zones_sqlite(sqlite)
+                nb_df, nb_meta = load_developments_rows_sqlite(sqlite)
+                if nb_df is not None and not nb_df.empty:
+                    self.developments, self.developments_meta = load_developments_from_df(
+                        nb_df, self.cfg, source_meta=nb_meta
+                    )
+                else:
+                    try:
+                        self.developments, self.developments_meta = load_developments(root, self.cfg)
+                    except Exception as e:  # noqa: BLE001
+                        self.developments = []
+                        self.developments_meta = {"source": None, "rows": 0, "errors": [str(e)]}
+            else:
+                df = load_core_dataset(root)
+                df = compute_heuristic_scores(df, self.cfg)
+                df = tag_scenarios(df, self.cfg)
+                df = enrich_geo(df, root, self.cfg)
+                bundle = train_models(df, self.cfg)
+                df = df.copy()
+                df["ml_score"] = bundle["ml_score"].reindex(df.index).astype(float)
+                df["cluster_id"] = bundle["cluster_id"].reindex(df.index).astype(int)
+                metrics = bundle["metrics"]
+                self.model_version = _version_token(df, metrics)
+                self.df = df
+                self.bundle = bundle
+                self.poi = load_poi_layers(root)
+                self.priority_zones = load_priority_zones(root)
+                try:
+                    self.developments, self.developments_meta = load_developments(root, self.cfg)
+                except Exception as e:  # noqa: BLE001
+                    self.developments = []
+                    self.developments_meta = {"source": None, "rows": 0, "errors": [str(e)]}
         except Exception as e:  # noqa: BLE001 — явный лог для ingest
             self.last_error = str(e)
             raise

@@ -87,20 +87,20 @@ def _pick_date_column(df: pd.DataFrame) -> str | None:
     return None
 
 
-def load_developments(data_dir: Path, cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """
-    Загрузка CSV новостроек. Обязательные поля: lat, lon + колонка даты сдачи.
-    """
-    path = resolve_developments_csv(data_dir, cfg)
-    meta: dict[str, Any] = {"source": str(path) if path else None, "rows": 0, "errors": []}
-    if path is None:
-        return [], meta
-
-    df = _read_table(path)
+def load_developments_from_df(
+    df: pd.DataFrame,
+    cfg: dict[str, Any],
+    *,
+    source_meta: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Та же логика, что load_developments, но из уже загруженного DataFrame (SQLite)."""
+    meta: dict[str, Any] = dict(source_meta) if source_meta else {"source": "dataframe", "rows": 0, "errors": []}
+    meta.setdefault("errors", [])
     if df.empty:
         meta["errors"].append("empty_file")
         return [], meta
 
+    df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
     lat_c = "lat" if "lat" in df.columns else ("latitude" if "latitude" in df.columns else None)
     lon_c = "lon" if "lon" in df.columns else ("longitude" if "longitude" in df.columns else None)
@@ -154,6 +154,19 @@ def load_developments(data_dir: Path, cfg: dict[str, Any]) -> tuple[list[dict[st
 
     meta["rows"] = len(out)
     return out, meta
+
+
+def load_developments(data_dir: Path, cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """
+    Загрузка CSV новостроек. Обязательные поля: lat, lon + колонка даты сдачи.
+    """
+    path = resolve_developments_csv(data_dir, cfg)
+    meta: dict[str, Any] = {"source": str(path) if path else None, "rows": 0, "errors": []}
+    if path is None:
+        return [], meta
+
+    df = _read_table(path)
+    return load_developments_from_df(df, cfg, source_meta=meta)
 
 
 def developments_geojson(items: list[dict[str, Any]]) -> dict[str, Any]:

@@ -162,12 +162,18 @@ def tag_scenarios(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
     return out
 
 
-def enrich_geo(df: pd.DataFrame, data_dir: Path, cfg: dict[str, Any]) -> pd.DataFrame:
+def enrich_geo(
+    df: pd.DataFrame,
+    data_dir: Path,
+    cfg: dict[str, Any],
+    *,
+    okrug_ref: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     out = df.copy()
     latlons = [h3_to_latlon(h) for h in out["h3_index"].astype(str)]
     out["lat"] = [x[0] for x in latlons]
     out["lon"] = [x[1] for x in latlons]
-    ref = load_okrug_reference(data_dir)
+    ref = okrug_ref if okrug_ref is not None else load_okrug_reference(data_dir)
     out["okrug"] = [assign_okrug(lat, lon, ref) for lat, lon in zip(out["lat"], out["lon"], strict=False)]
     return out
 
