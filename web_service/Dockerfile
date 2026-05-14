@@ -1,4 +1,4 @@
-# Единый образ для PaaS (Timeweb и т.п.): один процесс uvicorn на 0.0.0.0:$PORT,
+# Единый образ для PaaS (Timeweb и т.п.): uvicorn на 0.0.0.0:8080 (см. GEOATM_BIND_INTERNAL_8080),
 # API под /api, статика SPA из dist, /health на корне для healthcheck.
 # sklearn подгружается только при ingest/explain — быстрее bind порта после старта.
 
@@ -38,8 +38,8 @@ RUN chmod +x /app/deploy/start.sh /app/deploy/healthcheck.py
 
 EXPOSE 8080
 
-# start-period: cold import + фоновый ingest на слабом CPU; Timeweb часто ~3 мин на деплой.
-HEALTHCHECK --interval=15s --timeout=12s --start-period=180s --retries=16 \
-  CMD python3 /app/deploy/healthcheck.py
+# start-period: cold import + ingest; --timeout — лимит на один запуск CMD (healthcheck.py должен уложиться).
+HEALTHCHECK --interval=15s --timeout=30s --start-period=180s --retries=16 \
+  CMD ["/usr/local/bin/python3", "/app/deploy/healthcheck.py"]
 
-CMD ["/app/deploy/start.sh"]
+ENTRYPOINT ["/app/deploy/start.sh"]

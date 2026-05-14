@@ -12,4 +12,4 @@ else
 fi
 printf '%s' "$LISTEN" > /tmp/.geoatm_listen_port
 echo "[start.sh] uvicorn 0.0.0.0:${LISTEN}" >&2
-exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port "$LISTEN"
+exec /usr/local/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port "$LISTEN"

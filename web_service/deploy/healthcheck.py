@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docker HEALTHCHECK: как в рекомендации Timeweb — GET /health и / на localhost и 127.0.0.1."""
+"""Docker HEALTHCHECK: быстрый GET; короткий таймаут на запрос — укладываемся в HEALTHCHECK --timeout Docker."""
 from __future__ import annotations
 
 import os
@@ -8,6 +8,9 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+# Один запуск CMD не должен превышать HEALTHCHECK --timeout в Dockerfile.
+_REQ_TIMEOUT = 3
 
 
 def _parse_port(raw: str | None) -> int | None:
@@ -25,7 +28,7 @@ def _parse_port(raw: str | None) -> int | None:
 
 
 def _candidate_ports() -> list[int]:
-    """8080 первым — совпадает с EXPOSE и сканером Timeweb."""
+    """8080 первым — EXPOSE и Timeweb."""
     out: list[int] = []
 
     def add(p: int | None) -> None:
@@ -43,8 +46,8 @@ def _candidate_ports() -> list[int]:
 
 
 def _candidate_hosts() -> list[str]:
-    # localhost — как в документации Timeweb; 127.0.0.1 — без IPv6 ::1
-    return ["localhost", "127.0.0.1"]
+    # Сначала 127.0.0.1 (надёжно с bind 0.0.0.0), затем localhost как в гайде Timeweb.
+    return ["127.0.0.1", "localhost"]
 
 
 def _ok_code(code: int) -> bool:
@@ -54,11 +57,11 @@ def _ok_code(code: int) -> bool:
 def _probe_get(url: str) -> bool:
     try:
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=_REQ_TIMEOUT) as resp:
             code = int(resp.getcode())
             if not _ok_code(code):
                 return False
-            resp.read(8192)
+            resp.read(4096)
             return True
     except urllib.error.HTTPError as e:
         return _ok_code(int(e.code))
@@ -69,7 +72,6 @@ def _probe_get(url: str) -> bool:
 def main() -> int:
     ports = _candidate_ports()
     hosts = _candidate_hosts()
-    # /health — лёгкий JSON; / — как путь проверки в панели Timeweb
     paths = ("/health", "/")
     errs: list[str] = []
     for port in ports:
@@ -79,7 +81,7 @@ def main() -> int:
                 if _probe_get(url):
                     return 0
                 errs.append(f"{url}: no 2xx")
-    for line in errs[-12:]:
+    for line in errs[-8:]:
         print(line, file=sys.stderr)
     return 1
 
