@@ -39,7 +39,7 @@ def test_dataset_pipeline_smoke():
                 "poi_score": 0.12,
                 "competitor_proximity": 0.08,
             },
-            "white_spot_threshold": 0.70,
+            "white_spot_ds_percentile": 75,
             "min_unique_customers_percentile": 50,
         },
         "scenarios": {
@@ -62,4 +62,6 @@ def test_dataset_pipeline_smoke():
     assert df["heuristic_score"].between(0, 1).all()
     assert df["retention_proxy_score"].between(0, 1).all()
     assert df["competition_pressure_score"].between(0, 1).all()
+    ws = int(df["scenario_tags"].apply(lambda t: "white_spots" in t).sum())
+    assert ws > 0, "ожидаются зоны с тегом white_spots"
     assert len(df) > 100

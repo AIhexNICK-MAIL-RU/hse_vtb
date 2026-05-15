@@ -124,16 +124,36 @@ def compute_heuristic_scores(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFr
     return out
 
 
+def white_spot_thresholds(df: pd.DataFrame, cfg: dict[str, Any]) -> tuple[float, float]:
+    """
+    Пороги для «белых пятен» среди кандидатов (нет ВТБ и atm_activity=0).
+    Абсолютный white_spot_threshold=0.7 на этом датасете недостижим (max DS ~0.22);
+    по умолчанию — перцентили внутри подвыборки кандидатов.
+    """
+    ds_cfg = cfg.get("demand_score", {})
+    uc_pct = int(ds_cfg.get("min_unique_customers_percentile", 50))
+    ds_pct = int(ds_cfg.get("white_spot_ds_percentile", 75))
+    atm_act = pd.to_numeric(df.get("atm_activity"), errors="coerce").fillna(0).astype(int)
+    cand = (df["vtb_atm_count"].astype(int) == 0) & (atm_act == 0)
+    sub = df.loc[cand]
+    if sub.empty:
+        return float("inf"), float("inf")
+    uc_thr = float(np.percentile(sub["unique_customers"].astype(float), uc_pct))
+    if "white_spot_ds_percentile" in ds_cfg:
+        ds_thr = float(np.percentile(sub["heuristic_score"].astype(float), ds_pct))
+    else:
+        ds_thr = float(ds_cfg.get("white_spot_threshold", 0.70))
+    return ds_thr, uc_thr
+
+
 def tag_scenarios(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
     out = df.copy()
     scen = cfg.get("scenarios", {})
     comp_min = int(scen.get("competitor_min_atms", 2))
     low_pct = int(scen.get("low_utilization_sum_per_customer_percentile", 25))
     vol_pct = int(scen.get("growth_volatility_percentile", 75))
-    ds_thr = float(cfg.get("demand_score", {}).get("white_spot_threshold", 0.70))
-    uc_pct = int(cfg.get("demand_score", {}).get("min_unique_customers_percentile", 50))
+    ds_thr, uc_thr = white_spot_thresholds(out, cfg)
 
-    uc_thr = float(np.percentile(out["unique_customers"].astype(float), uc_pct))
     spc_low = float(np.percentile(out["sum_per_customer"].astype(float), low_pct))
     vol_thr = float(np.percentile(pd.to_numeric(out["avg_std"], errors="coerce").fillna(0), vol_pct))
 

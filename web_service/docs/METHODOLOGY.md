@@ -12,7 +12,7 @@ DS = 0.35\,z(\text{total\_sum}) + 0.25\,z(\text{unique\_customers}) + 0.20\,z(\t
 
 ## Четыре сценария (теги)
 
-1. **white_spots** — `vtb_atm_count = 0`, `atm_activity = 0`, `unique_customers ≥ P50`, `DS ≥ порога` (по умолчанию 0.70).
+1. **white_spots** — `vtb_atm_count = 0`, `atm_activity = 0`, `unique_customers ≥ P50` и `DS ≥ P75` **среди этих кандидатов** (не абсолютный порог 0.70 — на датасете max DS кандидатов ~0.22).
 2. **competitor** — `competitor_atm_count ≥ 2` и `vtb_atm_count = 0`.
 3. **growth_retail** — **прокси**: наличие ТЦ/вуза и высокая волатильность `avg_std` относительно P75 (вместо `growth_rate` из презентации, т.к. в финальном CSV нет динамики по периодам).
 4. **low_utilization** — `vtb_atm_count ≥ 1` и низкий `sum_per_customer` (ниже P25 по всему датасету).

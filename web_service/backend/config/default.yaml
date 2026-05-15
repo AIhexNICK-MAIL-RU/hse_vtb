@@ -6,8 +6,9 @@ demand_score:
     transactions_per_customer: 0.20
     poi_score: 0.12
     competitor_proximity: 0.08
-  white_spot_threshold: 0.70
-  min_unique_customers_percentile: 50  # P50 по уникальным клиентам для сценария «белые пятна»
+  white_spot_threshold: 0.70  # legacy: только если не задан white_spot_ds_percentile
+  white_spot_ds_percentile: 75  # P75 DS среди зон без ВТБ и без atm_activity
+  min_unique_customers_percentile: 50  # P50 unique_customers среди тех же кандидатов
 
 scenarios:
   competitor_min_atms: 2

@@ -12,7 +12,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from app.services.features import FEATURE_COLUMNS
+from app.services.features import FEATURE_COLUMNS, white_spot_thresholds
 
 
 def _spearman(x: np.ndarray, y: np.ndarray) -> float:
@@ -37,9 +37,7 @@ def _kendall_tau(x: np.ndarray, y: np.ndarray) -> float:
 
 def build_pseudo_labels(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.Series:
     """Псевдо-разметка: приоритет размещения (1) vs фон (0) по согласованным правилам."""
-    ds_thr = float(cfg.get("demand_score", {}).get("white_spot_threshold", 0.70))
-    uc_pct = int(cfg.get("demand_score", {}).get("min_unique_customers_percentile", 50))
-    uc_thr = float(np.percentile(df["unique_customers"].astype(float), uc_pct))
+    ds_thr, uc_thr = white_spot_thresholds(df, cfg)
     scen = cfg.get("scenarios", {})
     comp_min = int(scen.get("competitor_min_atms", 2))
 

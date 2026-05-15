@@ -284,6 +284,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNewBuildings]);
 
+  useEffect(() => {
+    if (!modelVersion) return;
+    loadZones();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario]);
+
   return (
     <div className="layout">
       <aside className="panel">
