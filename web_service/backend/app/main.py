@@ -323,6 +323,25 @@ else:
     app.include_router(router)
 
 
+@app.get("/favicon_512x512px.webp", include_in_schema=False)
+def favicon_512_webp() -> FileResponse:
+    screens_dir = settings.data_dir / "screens"
+    p = screens_dir / "favicon_512x512px.webp"
+    if not p.is_file():
+        raise HTTPException(status_code=404, detail="Favicon not found")
+    return FileResponse(p, media_type="image/webp")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico_fallback() -> FileResponse:
+    # Браузер иногда запрашивает /favicon.ico по умолчанию; отдаём тот же webp.
+    screens_dir = settings.data_dir / "screens"
+    p = screens_dir / "favicon_512x512px.webp"
+    if not p.is_file():
+        raise HTTPException(status_code=404, detail="Favicon not found")
+    return FileResponse(p, media_type="image/webp")
+
+
 @app.get("/", include_in_schema=False, response_model=None)
 def root_spa_or_probe() -> FileResponse | PlainTextResponse:
     """Главная SPA. Путь проверки состояния «/» в Timeweb — стабильный 200 (GET)."""
