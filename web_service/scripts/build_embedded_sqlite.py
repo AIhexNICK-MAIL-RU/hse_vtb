@@ -121,11 +121,26 @@ def main() -> int:
             pop.to_sql("population", con, if_exists="replace", index=False)
             print(f"  population: {len(pop)} rows")
 
-        nb = src / "new_buildings.csv"
-        if nb.exists():
-            df = _read_csv(nb)
-            df.to_sql("new_buildings", con, if_exists="replace", index=False)
-            print(f"  new_buildings: {len(df)} rows")
+        nb_written = False
+        spisok = WEB_SERVICE / "screens" / "spisok_domov.csv"
+        if spisok.is_file():
+            sys.path.insert(0, str(WEB_SERVICE / "backend"))
+            from app.config import settings as app_settings  # noqa: E402
+            from app.services.developments import build_new_buildings_table_for_sqlite  # noqa: E402
+
+            nb_df, nb_meta = build_new_buildings_table_for_sqlite(app_settings.merged_config)
+            if not nb_df.empty:
+                nb_df.to_sql("new_buildings", con, if_exists="replace", index=False)
+                print(f"  new_buildings: {len(nb_df)} rows (из spisok_domov.csv)")
+                nb_written = True
+            elif nb_meta.get("errors"):
+                print(f"  new_buildings: spisok пропуск — {nb_meta['errors'][:3]}", file=sys.stderr)
+        if not nb_written:
+            nb = src / "new_buildings.csv"
+            if nb.exists():
+                df = _read_csv(nb)
+                df.to_sql("new_buildings", con, if_exists="replace", index=False)
+                print(f"  new_buildings: {len(df)} rows")
     finally:
         con.close()
 

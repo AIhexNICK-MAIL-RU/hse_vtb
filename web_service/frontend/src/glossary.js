@@ -93,6 +93,12 @@ export const DEV_POPUP = {
     hint: "Строка адреса из данных новостройки.",
     suffix: "строка",
   },
+  apartments: {
+    icon: "🏢",
+    label: "Квартир",
+    hint: "Количество квартир в доме из spisok_domov.csv — масштаб объекта.",
+    suffix: "шт.",
+  },
   coords: {
     icon: "📍",
     label: "Координаты",

@@ -9,7 +9,11 @@ from typing import Any
 import pandas as pd
 
 from app.config import settings
-from app.services.developments import load_developments, load_developments_from_df
+from app.services.developments import (
+    load_developments,
+    load_developments_from_df,
+    resolve_spisok_domov_path,
+)
 from app.services.features import (
     compute_heuristic_scores,
     compute_retention_metrics,
@@ -79,17 +83,24 @@ class AppState:
                 self.bundle = bundle
                 self.poi = load_poi_layers_sqlite(sqlite)
                 self.priority_zones = load_priority_zones_sqlite(sqlite)
-                nb_df, nb_meta = load_developments_rows_sqlite(sqlite)
-                if nb_df is not None and not nb_df.empty:
-                    self.developments, self.developments_meta = load_developments_from_df(
-                        nb_df, self.cfg, source_meta=nb_meta
-                    )
-                else:
+                if resolve_spisok_domov_path(self.cfg) is not None:
                     try:
                         self.developments, self.developments_meta = load_developments(root, self.cfg)
                     except Exception as e:  # noqa: BLE001
                         self.developments = []
                         self.developments_meta = {"source": None, "rows": 0, "errors": [str(e)]}
+                else:
+                    nb_df, nb_meta = load_developments_rows_sqlite(sqlite)
+                    if nb_df is not None and not nb_df.empty:
+                        self.developments, self.developments_meta = load_developments_from_df(
+                            nb_df, self.cfg, source_meta=nb_meta
+                        )
+                    else:
+                        try:
+                            self.developments, self.developments_meta = load_developments(root, self.cfg)
+                        except Exception as e:  # noqa: BLE001
+                            self.developments = []
+                            self.developments_meta = {"source": None, "rows": 0, "errors": [str(e)]}
             else:
                 df = load_core_dataset(root)
                 df = compute_heuristic_scores(df, self.cfg)

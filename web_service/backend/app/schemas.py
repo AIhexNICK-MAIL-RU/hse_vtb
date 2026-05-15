@@ -132,6 +132,10 @@ class NewBuildingOut(BaseModel):
     delivery_score: float
     delivery_tier: str
     months_to_completion: float
+    apartments: int | None = Field(
+        default=None,
+        description="Количество квартир из spisok_domov.csv (если указано)",
+    )
 
 
 class DevelopmentsResponse(BaseModel):

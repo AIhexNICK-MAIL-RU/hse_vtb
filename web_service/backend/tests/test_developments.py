@@ -16,11 +16,8 @@ def test_delivery_score_buckets():
     assert s4 < 0.45
 
 
-def test_load_developments_from_example(tmp_path):
-    import shutil
-
+def test_load_developments_from_example(tmp_path, monkeypatch):
     root = tmp_path
-    # минимальный dataset чтобы ingest не нужен — только load_developments
     df = pd.DataFrame(
         [
             {"building_id": "a", "name": "A", "lat": 55.0, "lon": 37.0, "completion_date": "2026-06-01"},
@@ -28,7 +25,8 @@ def test_load_developments_from_example(tmp_path):
         ]
     )
     p = root / "new_buildings.csv"
-    df.head(1).to_csv(p, index=False)
+    df.to_csv(p, index=False)
+    monkeypatch.setenv("GEOATM_NEW_BUILDINGS_CSV", str(p))
     items, meta = load_developments(root, {"developments": {"csv_filename": "new_buildings.csv"}})
     assert len(items) == 1
     assert meta["rows"] == 1

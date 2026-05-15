@@ -39,9 +39,13 @@ security:
 ui:
   placement_radius_m: 400
 
-# Новостройки (отдельный слой и delivery_score; файл опционален)
+# Новостройки: список домов (адрес + квартиры + год сдачи) → геокод + delivery_score
 developments:
+  spisok_csv: screens/spisok_domov.csv
+  geocode_cache: screens/spisok_domov_geocoded.csv
   csv_filename: new_buildings.csv
+  completion_year_month: 7
+  completion_year_day: 1
   # reference_date: "2026-05-14"  # раскомментируйте для демо с фиксированной «сегодня»
   buckets:
     months_urgent: 3

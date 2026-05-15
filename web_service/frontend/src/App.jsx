@@ -496,6 +496,9 @@ export default function App() {
                         <DevFieldRow meta={DEV_POPUP.months_to_completion}>
                           {d.months_to_completion ?? "—"}
                         </DevFieldRow>
+                        {d.apartments != null && d.apartments > 0 ? (
+                          <DevFieldRow meta={DEV_POPUP.apartments}>{d.apartments}</DevFieldRow>
+                        ) : null}
                         {d.address ? <DevFieldRow meta={DEV_POPUP.address}>{d.address}</DevFieldRow> : null}
                       </div>
                     </div>

@@ -163,7 +163,7 @@ def ingest(data_dir: str | None = Query(default=None)) -> IngestResponse:
 
 @router.get("/developments", response_model=DevelopmentsResponse)
 def get_developments() -> DevelopmentsResponse:
-    """Новостройки: отдельный delivery_score по сроку сдачи (файл `new_buildings.csv` или GEOATM_NEW_BUILDINGS_CSV)."""
+    """Новостройки: delivery_score по сроку сдачи (`screens/spisok_domov.csv` или GEOATM_NEW_BUILDINGS_CSV)."""
     items = [NewBuildingOut.model_validate(x) for x in state.developments]
     gj = developments_geojson(state.developments)
     src = (state.developments_meta or {}).get("source")
