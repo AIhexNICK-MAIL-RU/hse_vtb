@@ -34,6 +34,18 @@ from app.state import state
 # В проде (Timeweb): GEOATM_API_PREFIX=/api + статика; локально с Vite — префикс пустой (прокси срезает /api).
 API_PREFIX = os.environ.get("GEOATM_API_PREFIX", "").strip().rstrip("/")
 STATIC_DIR = Path(os.environ.get("GEOATM_STATIC_DIR", "").strip())
+WEB_SERVICE_DIR = Path(__file__).resolve().parents[2]
+SCREENS_DIR = WEB_SERVICE_DIR / "screens"
+
+
+def _resolve_brand_asset(name: str) -> Path | None:
+    """Статика из frontend/dist (прод) или web_service/screens (локально)."""
+    if STATIC_DIR.is_dir():
+        p = STATIC_DIR / name
+        if p.is_file():
+            return p
+    p = SCREENS_DIR / name
+    return p if p.is_file() else None
 
 
 def _row_to_zone(r: Any, placement: PlacementOut | None = None) -> ZoneOut:
@@ -325,21 +337,26 @@ else:
 
 @app.get("/favicon_512x512px.webp", include_in_schema=False)
 def favicon_512_webp() -> FileResponse:
-    screens_dir = settings.data_dir / "screens"
-    p = screens_dir / "favicon_512x512px.webp"
-    if not p.is_file():
+    p = _resolve_brand_asset("favicon_512x512px.webp")
+    if p is None:
         raise HTTPException(status_code=404, detail="Favicon not found")
     return FileResponse(p, media_type="image/webp")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon_ico_fallback() -> FileResponse:
-    # Браузер иногда запрашивает /favicon.ico по умолчанию; отдаём тот же webp.
-    screens_dir = settings.data_dir / "screens"
-    p = screens_dir / "favicon_512x512px.webp"
-    if not p.is_file():
+    p = _resolve_brand_asset("favicon_512x512px.webp")
+    if p is None:
         raise HTTPException(status_code=404, detail="Favicon not found")
     return FileResponse(p, media_type="image/webp")
+
+
+@app.get("/VTB_Logo_2018.svg.png", include_in_schema=False)
+def vtb_logo_png() -> FileResponse:
+    p = _resolve_brand_asset("VTB_Logo_2018.svg.png")
+    if p is None:
+        raise HTTPException(status_code=404, detail="Logo not found")
+    return FileResponse(p, media_type="image/png")
 
 
 @app.get("/", include_in_schema=False, response_model=None)

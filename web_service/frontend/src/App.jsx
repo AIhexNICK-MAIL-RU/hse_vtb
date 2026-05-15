@@ -7,6 +7,7 @@ import { buildZonePopupHtml, DEV_POPUP, formatNum } from "./glossary.js";
 const viteApi = import.meta.env.VITE_API_URL;
 const viteBase = import.meta.env.BASE_URL || "/";
 const basePrefix = viteBase === "/" ? "" : viteBase.replace(/\/$/, "");
+const LOGO_URL = `${basePrefix}/VTB_Logo_2018.svg.png`;
 const API_BASE =
   viteApi != null && String(viteApi).trim() !== ""
     ? String(viteApi).trim().replace(/\/$/, "")
@@ -286,7 +287,20 @@ export default function App() {
   return (
     <div className="layout">
       <aside className="panel">
-        <h1>VTB GeoATM — приоритет зон</h1>
+        <header className="brand-header">
+          <img
+            className="brand-logo"
+            src={LOGO_URL}
+            alt="ВТБ"
+            width={168}
+            height={48}
+            decoding="async"
+          />
+          <div className="brand-text">
+            <h1>GeoATM</h1>
+            <p className="brand-sub">Приоритет зон H3</p>
+          </div>
+        </header>
         {backendStatus ? <div className="meta warn">{backendStatus}</div> : null}
         <div className="meta">API: {API_BASE}</div>
         <div className="meta">model_version: {modelVersion || "—"}</div>
