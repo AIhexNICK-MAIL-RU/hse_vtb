@@ -58,6 +58,18 @@ class ZoneOut(BaseModel):
     metro_count: int
     mall_count: int
     university_count: int
+    retention_proxy_score: float = Field(
+        ...,
+        description="Прокси удержания 0–1: уникальные клиенты, чек, частота, стабильность (низкая волатильность avg_std)",
+    )
+    competition_pressure_score: float = Field(
+        ...,
+        description="Давление среды 0–1: конкурентные АТМ + плотность метро (транзитные узлы)",
+    )
+    profile_tags: list[str] = Field(
+        default_factory=list,
+        description="Профиль ячейки: transit_retail_hub, stable_demand, competitive_corridor",
+    )
     polygon: list[list[float]]  # GeoJSON ring: [lon, lat] pairs
     placement: PlacementOut | None = Field(
         default=None,

@@ -65,6 +65,25 @@ def build_summary(df: pd.DataFrame, scenario: str, okrug: str | None) -> tuple[s
             f"уникальные клиенты={int(r['unique_customers'])}, сумма операций={float(r['total_sum']):,.0f} ₽, "
             f"сценарные теги=[{tags}]"
         )
+    if "retention_proxy_score" in d2.columns and "competition_pressure_score" in d2.columns:
+        mean_ret = float(d2["retention_proxy_score"].mean())
+        mean_press = float(d2["competition_pressure_score"].mean())
+        lines.append(
+            f"Удержание (прокси 0–1): среднее по выборке {mean_ret:.3f} — объём и стабильность спроса в ячейке; "
+            f"давление среды (конкуренты+метро): среднее {mean_press:.3f}."
+        )
+        hi_press = d2.nlargest(3, "competition_pressure_score")
+        lines.append("Топ-3 зоны по давлению среды (высокая конкуренция / транзит):")
+        for _, r in hi_press.iterrows():
+            ptags = (
+                ", ".join(r["profile_tags"])
+                if isinstance(r.get("profile_tags"), list)
+                else str(r.get("profile_tags", ""))
+            )
+            lines.append(
+                f"  • {r['h3_index']}: давление={float(r['competition_pressure_score']):.3f}, "
+                f"удержание={float(r['retention_proxy_score']):.3f}, профиль=[{ptags or '—'}]"
+            )
     risks: list[str] = []
     if float(d2["competitor_atm_count"].mean()) > 1.5:
         risks.append("в среднем высокая плотность конкурентных банкоматов — оцените эффект перехвата vs давление на маржу")

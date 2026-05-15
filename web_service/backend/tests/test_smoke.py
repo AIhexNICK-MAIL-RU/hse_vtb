@@ -7,6 +7,7 @@ os.environ.setdefault("GEOATM_AUTO_INGEST", "0")
 
 from app.services.features import (  # noqa: E402
     compute_heuristic_scores,
+    compute_retention_metrics,
     enrich_geo,
     h3_to_latlon,
     h3_to_polygon_geojson,
@@ -46,12 +47,19 @@ def test_dataset_pipeline_smoke():
             "low_utilization_sum_per_customer_percentile": 25,
             "growth_volatility_percentile": 75,
         },
+        "retention": {},
     }
     df = load_core_dataset(root)
     df = compute_heuristic_scores(df, cfg)
     df = tag_scenarios(df, cfg)
+    df = compute_retention_metrics(df, cfg)
     df = enrich_geo(df, root, cfg)
     assert "heuristic_score" in df.columns
     assert "scenario_tags" in df.columns
+    assert "retention_proxy_score" in df.columns
+    assert "competition_pressure_score" in df.columns
+    assert "profile_tags" in df.columns
     assert df["heuristic_score"].between(0, 1).all()
+    assert df["retention_proxy_score"].between(0, 1).all()
+    assert df["competition_pressure_score"].between(0, 1).all()
     assert len(df) > 100

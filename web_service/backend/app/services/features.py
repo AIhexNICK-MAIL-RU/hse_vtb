@@ -162,6 +162,72 @@ def tag_scenarios(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
     return out
 
 
+def compute_retention_metrics(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
+    """Прокси удержания и давления конкуренции по H3 (см. docs/RETENTION_IDEAS.md)."""
+    out = df.copy()
+    rc = cfg.get("retention", {})
+    w_uc = float(rc.get("proxy_weight_unique", 0.28))
+    w_spc = float(rc.get("proxy_weight_spc", 0.24))
+    w_tpc = float(rc.get("proxy_weight_tpc", 0.24))
+    w_stable = float(rc.get("proxy_weight_stability", 0.24))
+    ws = w_uc + w_spc + w_tpc + w_stable
+    if ws <= 0:
+        ws = 1.0
+    w_uc, w_spc, w_tpc, w_stable = w_uc / ws, w_spc / ws, w_tpc / ws, w_stable / ws
+
+    norm_uc = minmax_series(out["unique_customers"])
+    norm_spc = minmax_series(out["sum_per_customer"])
+    norm_tpc = minmax_series(out["transactions_per_customer"])
+    vol = pd.to_numeric(out.get("avg_std"), errors="coerce").fillna(0).astype(float)
+    norm_vol = minmax_series(vol)
+    stability = (1.0 - norm_vol).clip(0, 1)
+
+    out["retention_proxy_score"] = (
+        w_uc * norm_uc + w_spc * norm_spc + w_tpc * norm_tpc + w_stable * stability
+    ).clip(0, 1).astype(float)
+
+    nc = float(rc.get("pressure_weight_competitor", 0.65))
+    nm = float(rc.get("pressure_weight_metro", 0.35))
+    s = nc + nm
+    if s <= 0:
+        s = 1.0
+    nc, nm = nc / s, nm / s
+    norm_comp = minmax_series(out["competitor_atm_count"])
+    norm_metro = minmax_series(out["metro_count"])
+    out["competition_pressure_score"] = (nc * norm_comp + nm * norm_metro).clip(0, 1).astype(float)
+
+    metro_thr = float(
+        pd.to_numeric(out["metro_count"], errors="coerce").fillna(0).quantile(0.75)
+    )
+    med_h = float(out["heuristic_score"].median())
+    ret_stable_thr = float(rc.get("stable_demand_retention_min", 0.65))
+    norm_comp_row = minmax_series(out["competitor_atm_count"])
+
+    prof: list[list[str]] = []
+    for row_idx in out.index:
+        r = out.loc[row_idx]
+        mc = int(pd.to_numeric(r.get("metro_count"), errors="coerce") or 0)
+        mall = int(pd.to_numeric(r.get("mall_count"), errors="coerce") or 0)
+        uni = int(pd.to_numeric(r.get("university_count"), errors="coerce") or 0)
+        vtb = int(pd.to_numeric(r.get("vtb_atm_count"), errors="coerce") or 0)
+        comp = int(pd.to_numeric(r.get("competitor_atm_count"), errors="coerce") or 0)
+        ret = float(out.loc[row_idx, "retention_proxy_score"])
+        h = float(out.loc[row_idx, "heuristic_score"])
+        nc_val = float(norm_comp_row.loc[row_idx])
+        t: list[str] = []
+        if mc >= metro_thr and (mall >= 1 or uni >= 1):
+            t.append("transit_retail_hub")
+        if ret >= ret_stable_thr and h >= med_h:
+            t.append("stable_demand")
+        if vtb >= 1 and comp >= int(rc.get("competitive_corridor_min_competitors", 2)) and nc_val >= float(
+            rc.get("competitive_corridor_norm_comp_min", 0.4)
+        ):
+            t.append("competitive_corridor")
+        prof.append(t)
+    out["profile_tags"] = prof
+    return out
+
+
 def enrich_geo(
     df: pd.DataFrame,
     data_dir: Path,

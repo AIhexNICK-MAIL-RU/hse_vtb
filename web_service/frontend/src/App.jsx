@@ -138,7 +138,10 @@ export default function App() {
         h3: z.h3_index,
         ml: z.ml_score,
         ds: z.heuristic_score,
+        retention: z.retention_proxy_score,
+        pressure: z.competition_pressure_score,
         tags: z.scenario_tags?.join(", ") || "",
+        profileTags: z.profile_tags?.join(", ") || "",
         placement: z.placement || null,
       },
       geometry: {

@@ -38,6 +38,8 @@ STATIC_DIR = Path(os.environ.get("GEOATM_STATIC_DIR", "").strip())
 
 def _row_to_zone(r: Any, placement: PlacementOut | None = None) -> ZoneOut:
     tags = r["scenario_tags"] if isinstance(r["scenario_tags"], list) else []
+    raw_prof = r["profile_tags"] if isinstance(r.get("profile_tags"), list) else []
+    profile_tags = [str(t) for t in raw_prof]
     poly = h3_to_polygon_geojson(str(r["h3_index"]))
     return ZoneOut(
         h3_index=str(r["h3_index"]),
@@ -54,6 +56,9 @@ def _row_to_zone(r: Any, placement: PlacementOut | None = None) -> ZoneOut:
         metro_count=int(r["metro_count"]),
         mall_count=int(r["mall_count"]),
         university_count=int(r["university_count"]),
+        retention_proxy_score=float(r["retention_proxy_score"]),
+        competition_pressure_score=float(r["competition_pressure_score"]),
+        profile_tags=profile_tags,
         polygon=poly,
         placement=placement,
     )

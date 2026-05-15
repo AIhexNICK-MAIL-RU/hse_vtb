@@ -12,6 +12,7 @@ from app.config import settings
 from app.services.developments import load_developments, load_developments_from_df
 from app.services.features import (
     compute_heuristic_scores,
+    compute_retention_metrics,
     enrich_geo,
     load_core_dataset,
     load_poi_layers,
@@ -65,6 +66,7 @@ class AppState:
                 df = load_core_dataset_sqlite(sqlite)
                 df = compute_heuristic_scores(df, self.cfg)
                 df = tag_scenarios(df, self.cfg)
+                df = compute_retention_metrics(df, self.cfg)
                 okr = load_okrug_reference_sqlite(sqlite)
                 df = enrich_geo(df, root, self.cfg, okrug_ref=okr)
                 bundle = train_models(df, self.cfg)
@@ -92,6 +94,7 @@ class AppState:
                 df = load_core_dataset(root)
                 df = compute_heuristic_scores(df, self.cfg)
                 df = tag_scenarios(df, self.cfg)
+                df = compute_retention_metrics(df, self.cfg)
                 df = enrich_geo(df, root, self.cfg)
                 bundle = train_models(df, self.cfg)
                 df = df.copy()

@@ -28,6 +28,24 @@ export const ZONE_POPUP = {
     hint: "Сценарии бизнес-гипотез для ячейки (белые пятна, конкурент, тренд ТЦ/ВУЗов и т.д.).",
     suffix: "сценарии",
   },
+  retention: {
+    icon: "◎",
+    label: "Удержание",
+    hint: "Прокси удержания 0–1: уникальные клиенты, средний чек, частота операций и стабильность (низкая волатильность avg_std). См. docs/RETENTION_IDEAS.md.",
+    suffix: "прокси",
+  },
+  pressure: {
+    icon: "⚡",
+    label: "Давление",
+    hint: "Давление среды 0–1: плотность банкоматов конкурентов и метро (транзитные узлы). Не равно ML-приоритету.",
+    suffix: "конкуренция+транзит",
+  },
+  profile: {
+    icon: "◇",
+    label: "Профиль",
+    hint: "Краткий профиль ячейки: транзит+ритейл, устойчивый спрос, конкурентный коридор с ВТБ.",
+    suffix: "тип зоны",
+  },
 };
 
 export const SCENARIO_TAG_LABELS = {
@@ -36,6 +54,12 @@ export const SCENARIO_TAG_LABELS = {
   competitor: "перехват конкурента",
   growth_retail: "динамика ТЦ/ВУЗов (прокси)",
   low_utilization: "низкая загрузка",
+};
+
+export const PROFILE_TAG_LABELS = {
+  transit_retail_hub: "транзит + ритейл",
+  stable_demand: "устойчивый спрос",
+  competitive_corridor: "конкурентный коридор (ВТБ+конкуренты)",
 };
 
 export const DEV_POPUP = {
@@ -98,6 +122,16 @@ export function formatScenarioTags(tagsStr) {
     .map((t) => t.trim())
     .filter(Boolean)
     .map((t) => SCENARIO_TAG_LABELS[t] || t)
+    .join(", ");
+}
+
+export function formatProfileTags(tagsStr) {
+  if (!tagsStr || !String(tagsStr).trim()) return "—";
+  return String(tagsStr)
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => PROFILE_TAG_LABELS[t] || t)
     .join(", ");
 }
 
@@ -167,6 +201,10 @@ export function buildZonePopupHtml(props, options = {}) {
   const dsv = escapeHtml(formatNum(p.ds));
   const tagsRaw = p.tags || "";
   const tagsPretty = escapeHtml(formatScenarioTags(tagsRaw));
+  const retv = escapeHtml(formatNum(p.retention));
+  const pressv = escapeHtml(formatNum(p.pressure));
+  const profRaw = p.profileTags || "";
+  const profPretty = escapeHtml(formatProfileTags(profRaw));
 
   const headIcon = escapeHtml(Z.headerIcon);
   const headTitle = escapeHtml(Z.headerTitle);
@@ -189,7 +227,10 @@ export function buildZonePopupHtml(props, options = {}) {
       ${itemRow(Z.h3, `<span class="zp-mono">${h3v}</span>`)}
       ${itemRow(Z.ml, mlv)}
       ${itemRow(Z.ds, dsv)}
+      ${itemRow(Z.retention, retv)}
+      ${itemRow(Z.pressure, pressv)}
       ${itemRow(Z.tags, tagsPretty, tagsRaw || undefined)}
+      ${itemRow(Z.profile, profPretty, profRaw || undefined)}
     </div>
     ${placementBlock}
   </div>`;
